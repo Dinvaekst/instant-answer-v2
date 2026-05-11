@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Instant Answer",
+  "version": "1.3",
+  "description": "AI browser assistant with chat, analysis and web search",
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ]
+}

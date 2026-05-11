@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Instant Answer</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 390px;
+      margin: 0;
+      padding: 14px;
+      font-family: Inter, Arial, sans-serif;
+      background: linear-gradient(135deg, #f4f4f5, #ffffff);
+      color: #111;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid #eeeeee;
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.12);
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      font-size: 11px;
+      background: #f1f1f1;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+
+    .pro-status {
+      font-size: 11px;
+      background: #111;
+      color: white;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 27px;
+      letter-spacing: -0.8px;
+      line-height: 1;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 6px;
+      margin-bottom: 16px;
+    }
+
+    #videoTitle {
+      font-size: 13px;
+      color: #374151;
+      background: #f8fafc;
+      border: 1px solid #eef2f7;
+      border-radius: 16px;
+      padding: 12px;
+      margin: 0 0 14px 0;
+      line-height: 1.45;
+      max-height: 58px;
+      overflow: hidden;
+    }
+
+    .mode-buttons,
+    .extra-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .mode-buttons {
+      margin-bottom: 10px;
+    }
+
+    .extra-buttons {
+      margin-bottom: 12px;
+    }
+
+    button {
+      transition: 0.15s ease;
+      font-family: inherit;
+    }
+
+    .mode-buttons button,
+    .extra-buttons button {
+      padding: 13px 10px;
+      border: none;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #050505, #262626);
+      color: white;
+      font-weight: 900;
+      cursor: pointer;
+      font-size: 13px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.14);
+    }
+
+    .extra-buttons button {
+      background: #f3f4f6;
+      color: #111;
+      box-shadow: none;
+      border: 1px solid #e5e7eb;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #result {
+      margin-top: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid #e5e7eb;
+      min-height: 72px;
+      max-height: 430px;
+      overflow-y: auto;
+    }
+
+    .answer-box {
+      width: 100%;
+    }
+
+    .answer-label {
+      font-size: 10px;
+      color: #6b7280;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 900;
+    }
+
+    .answer-title {
+      font-size: 17px;
+      font-weight: 900;
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+    }
+
+    .answer-content {
+      color: #111827;
+      word-break: break-word;
+    }
+
+    .loading {
+      text-align: center;
+      font-size: 13px;
+      color: #6b7280;
+      padding: 10px;
+      font-weight: 800;
+    }
+
+    .typingDots span {
+      animation: blink 1.2s infinite;
+      font-weight: 900;
+    }
+
+    .typingDots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typingDots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes blink {
+      0%, 20% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
+    }
+
+    .math-formula-block {
+      background: #f8fafc;
+      border: 1px solid #dbe3ef;
+      border-radius: 14px;
+      padding: 12px;
+      margin: 10px 0;
+      font-weight: 900;
+      color: #111827;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .math-inline {
+      background: #f8fafc;
+      border: 1px solid #dbe3ef;
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .math-code-block {
+      background: #0f172a;
+      color: white;
+      border-radius: 14px;
+      padding: 12px;
+      margin: 10px 0;
+      position: relative;
+      overflow-x: auto;
+    }
+
+    .math-code-block pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.6;
+      color: white;
+    }
+
+    .copyFormulaBtn {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      border: none;
+      background: white;
+      color: #111;
+      border-radius: 9px;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: none;
+    }
+
+    .copyFormulaBtn:hover {
+      transform: none;
+    }
+
+    .math-action-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .math-action-row button {
+      border: 1px solid #d1d5db;
+      background: white;
+      color: #111827;
+      border-radius: 12px;
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: none;
+    }
+
+    .math-action-row button:hover {
+      background: #f8fafc;
+    }
+
+    .pro-box {
+      background: linear-gradient(135deg, #050505, #2b2b2b);
+      color: white;
+      padding: 16px;
+      border-radius: 20px;
+    }
+
+    .pro-label {
+      font-size: 10px;
+      opacity: 0.75;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+      font-weight: 900;
+    }
+
+    .pro-title {
+      font-size: 20px;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .pro-text {
+      font-size: 13px;
+      line-height: 1.5;
+      opacity: 0.9;
+      margin-bottom: 12px;
+    }
+
+    .pro-features {
+      font-size: 13px;
+      line-height: 1.8;
+      margin-bottom: 14px;
+    }
+
+    .upgrade-btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 14px;
+      background: white;
+      color: black;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    a {
+      color: #111;
+    }
+
+    textarea {
+      font-family: Inter, Arial, sans-serif;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f3f4f6;
+      border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #9ca3af;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="top-row">
+      <div class="badge">AI Assistant</div>
+      <div id="proStatus" class="pro-status">Free plan</div>
+    </div>
+
+    <h2>Instant Answer</h2>
+    <div class="subtitle">Understand anything in seconds</div>
+
+    <p id="videoTitle">Reading page...</p>
+
+    <div class="mode-buttons">
+      <button id="quickBtn">Quick</button>
+      <button id="deepBtn">Deep</button>
+      <button id="studyBtn">Study</button>
+      <button id="chatBtn">Chat</button>
+    </div>
+
+    <div class="extra-buttons">
+      <button id="historyBtn">History</button>
+      <button id="clearHistoryBtn">Clear</button>
+    </div>
+
+    <div id="result">
+      <div class="loading">
+        Ready
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

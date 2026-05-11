@@ -1,0 +1,18 @@
+{
+  "name": "instant-answer-backend",
+  "version": "1.0.0",
+  "description": "Backend for Instant Answer Chrome Extension",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.77.0",
+    "stripe": "^17.5.0"
+  }
+}
