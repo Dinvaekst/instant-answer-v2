@@ -3,13 +3,22 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import Stripe from "stripe";
+import multer from "multer";
+import pdfParse from "pdf-parse";
 
 dotenv.config();
 
 const app = express();
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+});
+
 app.use(cors());
-app.use(express.json({ limit: "4mb" }));
+app.use(express.json({ limit: "8mb" }));
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -52,6 +61,7 @@ function detectPageType(input = "") {
   if (text.includes("google search results") || text.includes("search query:")) return "google";
   if (text.includes("youtube.com") || text.includes("page type:\nyoutube")) return "youtube";
   if (text.includes("current page") || text.includes("page content")) return "webpage";
+  if (text.includes("pdf file") || text.includes("pdf text")) return "pdf";
 
   return "normal";
 }
@@ -79,6 +89,7 @@ function shouldUseWebSearch(input = "", mode = "chat") {
   const pageType = detectPageType(input);
 
   if (pageType === "google") return true;
+  if (pageType === "pdf") return false;
   if (isMathRequest(input, mode)) return false;
 
   const searchTriggers = [
@@ -219,11 +230,6 @@ ${query}
 
 Results:
 ${usefulPods.join("\n\n")}
-
-Rules:
-- Use this to validate calculations.
-- If Wolfram gives a result, compare it with your own reasoning.
-- Still explain step-by-step like a teacher.
 `,
       sources: [
         {
@@ -244,25 +250,16 @@ You are Instant Answer Math, an expert math teacher inside a browser extension.
 
 User plan: ${isPro ? "PRO" : "FREE"}
 
-Main goal:
-Build the best browser math helper for students.
-
 Math rules:
-- Understand equations, functions, word problems and gymnasium-level math.
 - Solve step-by-step.
 - Explain like a teacher.
 - Use simple language.
-- Always identify what is given and what must be found.
 - Show formulas before using them.
-- Use clean LaTeX for formulas.
-- Put important formulas in LaTeX using \\( ... \\) or \\[ ... \\].
+- Use clean LaTeX using \\( ... \\) or \\[ ... \\].
 - Check the final answer.
-- If there are multiple methods, choose the simplest one first.
-- If the problem is unclear, make the most reasonable assumption and say it shortly.
-- Do not skip algebra steps.
 - For word problems: write "Given", "Find", "Formula", "Calculation", "Answer".
 - For graph questions: describe shape, intersections, slope, vertex and important points.
-- For validation: compare your result with WolframAlpha if included.
+- Compare your result with WolframAlpha if included.
 
 Output format:
 1. Short answer
@@ -271,7 +268,7 @@ Output format:
 4. Final answer
 5. Check
 
-If graph data is useful, include a small graph instruction like:
+If graph data is useful, include:
 GRAPH:
 y = expression
 
@@ -279,6 +276,82 @@ ${wolframText}
 
 User input:
 ${limitText(input, isPro ? 24000 : 14000)}
+`;
+}
+
+function buildPdfPrompt({ pdfText, fileName, tool, question, isPro }) {
+  const toolRules = {
+    summary: `
+PDF summary mode:
+- Give a clear summary.
+- Start with the main idea.
+- Explain the document section by section.
+- End with the most important takeaway.
+`,
+    notes: `
+Study notes mode:
+- Create useful study notes.
+- Use headings and bullet points.
+- Explain difficult words simply.
+- Make it easy to revise.
+`,
+    flashcards: `
+Flashcards mode:
+- Create flashcards.
+- Format each as Q: and A:
+- Focus on key terms, facts, definitions and concepts.
+`,
+    quiz: `
+Quiz mode:
+- Create a quiz from the PDF.
+- Include multiple choice and short-answer questions.
+- Include answers after the quiz.
+`,
+    citations: `
+Citation extraction mode:
+- Extract useful quotes or important text pieces from the PDF text.
+- Explain why each citation matters.
+- Do not invent page numbers.
+`,
+    important: `
+Important points mode:
+- Find the most important points.
+- Rank them by importance.
+- Explain why each point matters.
+`,
+    qa: `
+PDF question answering mode:
+- Answer the user's question using only the PDF.
+- If the PDF does not contain the answer, say that clearly.
+`
+  };
+
+  return `
+You are Instant Answer PDF Assistant.
+
+User plan: ${isPro ? "PRO" : "FREE"}
+
+PDF file:
+${fileName}
+
+PDF tool:
+${tool}
+
+User question:
+${question || "Analyze this PDF."}
+
+Rules:
+${toolRules[tool] || toolRules.summary}
+
+Important:
+- Answer in the same language as the user.
+- Use only the PDF text.
+- Do not invent facts, quotes, sources or page numbers.
+- If the PDF text is unclear, say it honestly.
+- Be structured and useful.
+
+PDF text:
+${limitText(pdfText, isPro ? 26000 : 14000)}
 `;
 }
 
@@ -323,6 +396,7 @@ function getMaxTokens(mode, isPro) {
   if (isPro) {
     if (mode === "quick") return 700;
     if (mode === "math") return 4200;
+    if (mode === "pdf") return 4200;
     if (mode === "assignment") return 4000;
     if (mode === "study") return 3800;
     if (mode === "deep") return 3800;
@@ -331,6 +405,7 @@ function getMaxTokens(mode, isPro) {
 
   if (mode === "quick") return 300;
   if (mode === "math") return 1700;
+  if (mode === "pdf") return 1700;
   if (mode === "assignment") return 1400;
   if (mode === "study") return 1400;
   if (mode === "deep") return 1400;
@@ -341,7 +416,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "1.4-math-upgrade"
+    version: "1.5-pdf-files"
   });
 });
 
@@ -401,6 +476,76 @@ app.get("/success", async (req, res) => {
 app.post("/check-pro", (req, res) => {
   const { deviceId } = req.body || {};
   res.json({ pro: isProUser(deviceId) });
+});
+
+app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
+  try {
+    const { deviceId, tool = "summary", question = "" } = req.body || {};
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "Missing PDF",
+        answer: "Der mangler en PDF-fil."
+      });
+    }
+
+    const isPro = isProUser(deviceId);
+
+    const parsed = await pdfParse(req.file.buffer);
+    const pdfText = cleanText(parsed.text || "");
+
+    if (!pdfText || pdfText.length < 20) {
+      return res.status(400).json({
+        error: "Empty PDF",
+        answer: "Jeg kunne ikke læse tekst fra PDF'en. Den kan være scannet som billede."
+      });
+    }
+
+    const prompt = buildPdfPrompt({
+      pdfText,
+      fileName: req.file.originalname,
+      tool,
+      question,
+      isPro
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: isPro ? "gpt-4o" : "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: getMaxTokens("pdf", isPro),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Instant Answer PDF Assistant. Read PDF text carefully and create summaries, study notes, flashcards, quizzes, citations and answers. Never invent page numbers or quotes."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    });
+
+    const answer =
+      completion?.choices?.[0]?.message?.content?.trim() ||
+      "Jeg kunne ikke analysere PDF'en.";
+
+    res.json({
+      answer,
+      pro: isPro,
+      fileName: req.file.originalname,
+      pages: parsed.numpages || null,
+      tool
+    });
+  } catch (error) {
+    console.error("PDF error:", error);
+
+    res.status(500).json({
+      error: "PDF server error",
+      answer:
+        "Der skete en fejl med PDF'en. Prøv en mindre PDF eller en PDF med rigtig tekst."
+    });
+  }
 });
 
 app.post("/ask", async (req, res) => {
