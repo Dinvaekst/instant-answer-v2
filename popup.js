@@ -16,7 +16,7 @@ let activeMode = "chat";
 let activeMathTool = "calculator";
 let activePdfTool = "summary";
 
-let uploadedPdfText = "";
+let uploadedPdfFile = null;
 let uploadedPdfName = "";
 
 let chatMessages = JSON.parse(localStorage.getItem("ia_chat_messages") || "[]");
@@ -222,6 +222,46 @@ async function askBackend(input, mode) {
   return data;
 }
 
+async function askPdfBackend(question = "") {
+  if (hasReachedLimit()) {
+    showAnswer("PRO", "Upgrade to Pro", "You have used your free answers today.");
+    return null;
+  }
+
+  if (!uploadedPdfFile) {
+    showAnswer("PDF", "Upload PDF first", "Upload a PDF file before using PDF mode.");
+    return null;
+  }
+
+  const formData = new FormData();
+  formData.append("pdf", uploadedPdfFile);
+  formData.append("deviceId", getDeviceId());
+  formData.append("tool", activePdfTool);
+  formData.append("question", question || "");
+
+  const response = await fetch(`${BACKEND_URL}/ask-pdf`, {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await response.json();
+
+  if (data.pro) {
+    setProUser(true);
+  }
+
+  updateProStatus();
+
+  if (!response.ok || !data.answer) {
+    throw new Error(data.answer || "Could not analyze PDF.");
+  }
+
+  increaseUsage();
+  updateProStatus();
+
+  return data;
+}
+
 function renderChatMessages() {
   if (chatMessages.length === 0) {
     $("result").innerHTML = `<div class="loading">Skriv dit spørgsmål nedenfor</div>`;
@@ -297,7 +337,7 @@ function setPdfTool(tool) {
   $("mainInput").placeholder = data[tool][0];
   $("mainActionBtn").textContent = data[tool][1];
 
-  const status = uploadedPdfText
+  const status = uploadedPdfFile
     ? `${data[tool][2]} · ${uploadedPdfName}`
     : `${data[tool][2]} · Upload PDF først`;
 
@@ -397,74 +437,8 @@ ${userMessage}
 `;
 }
 
-function buildPdfPrompt(userMessage = "") {
-  const pdfRules = {
-    summary: `
-PDF summary mode:
-- Give a clear summary.
-- Start with the main idea.
-- Then explain the document section by section.
-- End with a short "most important takeaway".
-`,
-    notes: `
-Study notes mode:
-- Create useful study notes.
-- Use headings and bullet points.
-- Explain difficult words simply.
-- Make it easy to revise for school or exam.
-`,
-    flashcards: `
-Flashcards mode:
-- Create flashcards.
-- Format each as Q: and A:
-- Focus on key terms, facts, definitions and concepts.
-`,
-    quiz: `
-Quiz mode:
-- Create a quiz from the PDF.
-- Include multiple choice and short-answer questions.
-- Include answers after the quiz.
-`,
-    citations: `
-Citation extraction mode:
-- Extract useful quotes/sentences from the PDF text.
-- Explain why each citation is important.
-- Do not invent page numbers if they are not available.
-`,
-    important: `
-Important points mode:
-- Find the most important points.
-- Rank them by importance.
-- Explain why each point matters.
-`
-  };
-
-  return `
-You are Instant Answer PDF Assistant.
-
-Language rule:
-${languageInstruction()}
-
-PDF tool:
-${activePdfTool}
-
-Rules:
-${pdfRules[activePdfTool]}
-
-User question:
-${userMessage || "Analyze this PDF."}
-
-PDF file name:
-${uploadedPdfName || "Unknown PDF"}
-
-PDF text:
-${cleanText(uploadedPdfText, 18000)}
-`;
-}
-
 function buildDirectPrompt(userMessage) {
   if (activeMode === "math") return buildMathPrompt(userMessage);
-  if (activeMode === "pdf") return buildPdfPrompt(userMessage);
 
   return `
 You are Instant Answer.
@@ -552,19 +526,20 @@ async function runMainAction() {
 
   if (activeMode !== "analyze" && activeMode !== "pdf" && !userMessage) return;
 
-  if (activeMode === "pdf" && !uploadedPdfText) {
+  if (activeMode === "pdf" && !uploadedPdfFile) {
     showAnswer("PDF", "Upload PDF first", "Upload a PDF file before using PDF mode.");
     return;
   }
 
   isGenerating = true;
-  showLoading("AI tænker...");
+  showLoading(activeMode === "pdf" ? "Analyzing PDF..." : "AI tænker...");
 
   try {
-    let input = "";
-    let backendMode = activeMode;
+    let data = null;
 
-    if (activeMode === "analyze") {
+    if (activeMode === "pdf") {
+      data = await askPdfBackend(userMessage);
+    } else if (activeMode === "analyze") {
       const loaded = await loadPageInfo(false);
 
       if (!loaded) {
@@ -572,12 +547,10 @@ async function runMainAction() {
         return;
       }
 
-      input = buildAnalyzePrompt(userMessage);
+      data = await askBackend(buildAnalyzePrompt(userMessage), "analyze");
     } else {
-      input = buildDirectPrompt(userMessage);
+      data = await askBackend(buildDirectPrompt(userMessage), activeMode);
     }
-
-    const data = await askBackend(input, backendMode);
 
     if (!data) return;
 
@@ -640,39 +613,25 @@ async function handlePdfUpload(event) {
 
   if (!file) return;
 
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    uploadedPdfFile = null;
+    uploadedPdfName = "";
+    $("pdfFileName").textContent = "Please choose a PDF file";
+    showAnswer("PDF", "Wrong file type", "Please upload a PDF file.");
+    return;
+  }
+
+  uploadedPdfFile = file;
   uploadedPdfName = file.name;
-  uploadedPdfText = "";
 
   $("pdfFileName").textContent = `Selected: ${uploadedPdfName}`;
-  showLoading("Reading PDF...");
+  setPageStatus(`${uploadedPdfName} · PDF selected`);
 
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-
-    uploadedPdfText = `
-PDF file uploaded:
-${uploadedPdfName}
-
-IMPORTANT:
-Browser-side PDF parsing is not fully enabled yet.
-Next step is to add server-side PDF parsing with pdf-parse.
-For now, use the question box to describe what you want from this PDF, or paste PDF text manually.
-`;
-
-    showAnswer(
-      "PDF",
-      "PDF selected",
-      `PDF selected: ${uploadedPdfName}\n\nNext step: we will connect real PDF parsing in server.js so the AI can read the full document.`
-    );
-
-    setPageStatus(`${uploadedPdfName} · PDF selected`);
-  } catch (error) {
-    console.error(error);
-    uploadedPdfText = "";
-    uploadedPdfName = "";
-    $("pdfFileName").textContent = "Could not read PDF";
-    showAnswer("PDF", "Upload failed", "Could not read the PDF file.");
-  }
+  showAnswer(
+    "PDF",
+    "PDF selected",
+    `PDF selected: ${uploadedPdfName}\n\nChoose Summary, Notes, Flashcards, Quiz, Citations or Important, then press the main button.`
+  );
 }
 
 function showHistory() {
@@ -708,7 +667,7 @@ function clearAll() {
   currentPageLabel = "";
   pageLoaded = false;
 
-  uploadedPdfText = "";
+  uploadedPdfFile = null;
   uploadedPdfName = "";
 
   if ($("pdfFileInput")) $("pdfFileInput").value = "";
