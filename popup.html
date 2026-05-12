@@ -87,8 +87,8 @@
 
     .mode-tabs {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 7px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
     }
 
     .mode-tab {
@@ -96,8 +96,8 @@
       background: #f9fafb;
       color: #111827;
       border-radius: 14px;
-      padding: 10px 6px;
-      font-size: 11px;
+      padding: 10px 4px;
+      font-size: 10px;
       font-weight: 900;
     }
 
@@ -146,7 +146,8 @@
     }
 
     .math-tools,
-    .pdf-tools {
+    .pdf-tools,
+    .youtube-tools {
       display: none;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 7px;
@@ -154,7 +155,8 @@
     }
 
     .math-tool-btn,
-    .pdf-tool-btn {
+    .pdf-tool-btn,
+    .youtube-tool-btn {
       border: 1px solid #e5e7eb;
       background: white;
       color: #111827;
@@ -165,7 +167,8 @@
     }
 
     .math-tool-btn.active,
-    .pdf-tool-btn.active {
+    .pdf-tool-btn.active,
+    .youtube-tool-btn.active {
       background: #111827;
       color: white;
       border-color: #111827;
@@ -296,6 +299,7 @@
       <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
       <button id="analyzeModeBtn" class="mode-tab" type="button">Analyze</button>
       <button id="pdfModeBtn" class="mode-tab" type="button">PDF</button>
+      <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
     </div>
 
     <div class="panel">
@@ -324,6 +328,15 @@
         <button id="pdfQuizBtn" class="pdf-tool-btn" type="button">Quiz</button>
         <button id="pdfCitationsBtn" class="pdf-tool-btn" type="button">Citations</button>
         <button id="pdfImportantBtn" class="pdf-tool-btn" type="button">Important</button>
+      </div>
+
+      <div id="youtubeTools" class="youtube-tools">
+        <button id="ytSummaryBtn" class="youtube-tool-btn active" type="button">Summary</button>
+        <button id="ytNotesBtn" class="youtube-tool-btn" type="button">Notes</button>
+        <button id="ytMomentsBtn" class="youtube-tool-btn" type="button">Moments</button>
+        <button id="ytQuizBtn" class="youtube-tool-btn" type="button">Quiz</button>
+        <button id="ytChaptersBtn" class="youtube-tool-btn" type="button">Chapters</button>
+        <button id="ytCommentsBtn" class="youtube-tool-btn" type="button">Comments</button>
       </div>
 
       <div id="pdfUploadBox" class="file-box">

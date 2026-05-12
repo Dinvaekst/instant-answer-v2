@@ -57,9 +57,9 @@ function extractLatestUserMessage(input = "") {
 function detectPageType(input = "") {
   const text = input.toLowerCase();
 
+  if (text.includes("youtube.com/watch") || text.includes("page type:\nyoutube")) return "youtube";
   if (text.includes("reddit.com") || text.includes("page type:\nreddit")) return "reddit";
   if (text.includes("google search results") || text.includes("search query:")) return "google";
-  if (text.includes("youtube.com") || text.includes("page type:\nyoutube")) return "youtube";
   if (text.includes("current page") || text.includes("page content")) return "webpage";
   if (text.includes("pdf file") || text.includes("pdf text")) return "pdf";
 
@@ -90,6 +90,7 @@ function shouldUseWebSearch(input = "", mode = "chat") {
 
   if (pageType === "google") return true;
   if (pageType === "pdf") return false;
+  if (pageType === "youtube") return false;
   if (isMathRequest(input, mode)) return false;
 
   const searchTriggers = [
@@ -100,6 +101,150 @@ function shouldUseWebSearch(input = "", mode = "chat") {
   ];
 
   return searchTriggers.some(word => text.includes(word));
+}
+
+function extractYouTubeVideoId(input = "") {
+  const text = String(input || "");
+
+  const watchMatch = text.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+  if (watchMatch?.[1]) return watchMatch[1];
+
+  const shortMatch = text.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (shortMatch?.[1]) return shortMatch[1];
+
+  const embedMatch = text.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+  if (embedMatch?.[1]) return embedMatch[1];
+
+  const vMatch = text.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (vMatch?.[1]) return vMatch[1];
+
+  return "";
+}
+
+function decodeXml(text = "") {
+  return String(text)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function getYouTubeTranscript(input = "") {
+  const videoId = extractYouTubeVideoId(input);
+
+  if (!videoId) {
+    return {
+      text: "",
+      videoId: "",
+      transcriptFound: false
+    };
+  }
+
+  try {
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const pageResponse = await fetch(watchUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
+    if (!pageResponse.ok) {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    const html = await pageResponse.text();
+
+    const captionMatch = html.match(/"captionTracks":(\[.*?\])\s*,\s*"audioTracks"/);
+
+    if (!captionMatch?.[1]) {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    let captionTracks = [];
+
+    try {
+      captionTracks = JSON.parse(captionMatch[1]);
+    } catch {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    if (!Array.isArray(captionTracks) || captionTracks.length === 0) {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    const preferredTrack =
+      captionTracks.find(track => track.languageCode === "da") ||
+      captionTracks.find(track => track.languageCode === "en") ||
+      captionTracks[0];
+
+    if (!preferredTrack?.baseUrl) {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    const transcriptUrl = preferredTrack.baseUrl;
+    const transcriptResponse = await fetch(transcriptUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
+    if (!transcriptResponse.ok) {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    const xml = await transcriptResponse.text();
+    const transcript = decodeXml(xml);
+
+    if (!transcript || transcript.length < 20) {
+      return {
+        text: "",
+        videoId,
+        transcriptFound: false
+      };
+    }
+
+    return {
+      text: transcript,
+      videoId,
+      transcriptFound: true
+    };
+  } catch (error) {
+    console.error("YouTube transcript error:", error.message);
+
+    return {
+      text: "",
+      videoId,
+      transcriptFound: false
+    };
+  }
 }
 
 async function searchWeb(query, isPro) {
@@ -174,13 +319,8 @@ ${sourceText}
 }
 
 async function askWolframAlpha(query) {
-  if (!process.env.WOLFRAM_APP_ID) {
-    return { text: "", sources: [] };
-  }
-
-  if (!query || query.length < 2) {
-    return { text: "", sources: [] };
-  }
+  if (!process.env.WOLFRAM_APP_ID) return { text: "", sources: [] };
+  if (!query || query.length < 2) return { text: "", sources: [] };
 
   try {
     const url =
@@ -217,9 +357,7 @@ async function askWolframAlpha(query) {
       .filter(Boolean)
       .slice(0, 8);
 
-    if (usefulPods.length === 0) {
-      return { text: "", sources: [] };
-    }
+    if (usefulPods.length === 0) return { text: "", sources: [] };
 
     return {
       text: `
@@ -281,49 +419,13 @@ ${limitText(input, isPro ? 24000 : 14000)}
 
 function buildPdfPrompt({ pdfText, fileName, tool, question, isPro }) {
   const toolRules = {
-    summary: `
-PDF summary mode:
-- Give a clear summary.
-- Start with the main idea.
-- Explain the document section by section.
-- End with the most important takeaway.
-`,
-    notes: `
-Study notes mode:
-- Create useful study notes.
-- Use headings and bullet points.
-- Explain difficult words simply.
-- Make it easy to revise.
-`,
-    flashcards: `
-Flashcards mode:
-- Create flashcards.
-- Format each as Q: and A:
-- Focus on key terms, facts, definitions and concepts.
-`,
-    quiz: `
-Quiz mode:
-- Create a quiz from the PDF.
-- Include multiple choice and short-answer questions.
-- Include answers after the quiz.
-`,
-    citations: `
-Citation extraction mode:
-- Extract useful quotes or important text pieces from the PDF text.
-- Explain why each citation matters.
-- Do not invent page numbers.
-`,
-    important: `
-Important points mode:
-- Find the most important points.
-- Rank them by importance.
-- Explain why each point matters.
-`,
-    qa: `
-PDF question answering mode:
-- Answer the user's question using only the PDF.
-- If the PDF does not contain the answer, say that clearly.
-`
+    summary: "Give a clear PDF summary with main idea, sections and takeaway.",
+    notes: "Create useful study notes with headings, bullets and simple explanations.",
+    flashcards: "Create flashcards formatted as Q: and A:.",
+    quiz: "Create a quiz with multiple choice, short answers and answers after the quiz.",
+    citations: "Extract useful quotes or important text pieces. Do not invent page numbers.",
+    important: "Find and rank the most important points.",
+    qa: "Answer the user's question using only the PDF."
   };
 
   return `
@@ -355,7 +457,48 @@ ${limitText(pdfText, isPro ? 26000 : 14000)}
 `;
 }
 
-function buildPrompt(mode, input, isPro, pageType, wolframText = "") {
+function buildYoutubePrompt(input, isPro, transcriptText = "") {
+  return `
+You are Instant Answer YouTube Study Assistant.
+
+User plan: ${isPro ? "PRO" : "FREE"}
+
+Goal:
+Be the best YouTube study assistant.
+
+YouTube rules:
+- Use transcript when available.
+- Use title, description, comments and visible page context.
+- Create study summaries, notes, key moments, quizzes and chapter suggestions.
+- Detect chapters from timestamps if visible.
+- If exact timestamps are not available, say that and create topic-based moments.
+- Analyze comments separately from the video content.
+- Do not invent exact timestamps.
+- Be useful for students.
+
+Output:
+- Clear headings.
+- Short and useful sections.
+- If quiz is requested, include answers.
+- If notes are requested, make them easy to study from.
+- If key moments are requested, use timestamps only when present.
+
+Transcript status:
+${transcriptText ? "Transcript found and included." : "No transcript found. Use visible page content only."}
+
+Transcript:
+${limitText(transcriptText, isPro ? 26000 : 12000)}
+
+Visible YouTube/page input:
+${limitText(input, isPro ? 20000 : 12000)}
+`;
+}
+
+function buildPrompt(mode, input, isPro, pageType, wolframText = "", youtubeTranscript = "") {
+  if (mode === "youtube" || pageType === "youtube") {
+    return buildYoutubePrompt(input, isPro, youtubeTranscript);
+  }
+
   if (isMathRequest(input, mode)) {
     return buildMathPrompt(input, isPro, wolframText);
   }
@@ -397,6 +540,7 @@ function getMaxTokens(mode, isPro) {
     if (mode === "quick") return 700;
     if (mode === "math") return 4200;
     if (mode === "pdf") return 4200;
+    if (mode === "youtube") return 4200;
     if (mode === "assignment") return 4000;
     if (mode === "study") return 3800;
     if (mode === "deep") return 3800;
@@ -406,6 +550,7 @@ function getMaxTokens(mode, isPro) {
   if (mode === "quick") return 300;
   if (mode === "math") return 1700;
   if (mode === "pdf") return 1700;
+  if (mode === "youtube") return 1700;
   if (mode === "assignment") return 1400;
   if (mode === "study") return 1400;
   if (mode === "deep") return 1400;
@@ -416,7 +561,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "1.5-pdf-files"
+    version: "1.6-youtube-ai"
   });
 });
 
@@ -564,10 +709,12 @@ app.post("/ask", async (req, res) => {
     const latestMessage = extractLatestUserMessage(input);
 
     const mathMode = isMathRequest(input, mode);
+    const youtubeMode = mode === "youtube" || pageType === "youtube";
     const useSearch = shouldUseWebSearch(input, mode);
 
     const web = useSearch ? await searchWeb(latestMessage, isPro) : { text: "", sources: [] };
     const wolfram = mathMode ? await askWolframAlpha(latestMessage) : { text: "", sources: [] };
+    const youtube = youtubeMode ? await getYouTubeTranscript(input) : { text: "", transcriptFound: false, videoId: "" };
 
     const finalInput = `
 ${input}
@@ -575,19 +722,28 @@ ${input}
 ${web.text ? web.text : ""}
 
 ${wolfram.text ? wolfram.text : ""}
+
+${youtube.text ? `YOUTUBE TRANSCRIPT:\n${youtube.text}` : ""}
 `;
 
-    const prompt = buildPrompt(mode, finalInput, isPro, pageType, wolfram.text);
+    const prompt = buildPrompt(
+      youtubeMode ? "youtube" : mode,
+      finalInput,
+      isPro,
+      pageType,
+      wolfram.text,
+      youtube.text
+    );
 
     const completion = await openai.chat.completions.create({
       model: isPro ? "gpt-4o" : "gpt-4o-mini",
-      temperature: mathMode ? 0.1 : isPro ? 0.2 : 0.3,
-      max_tokens: getMaxTokens(mathMode ? "math" : mode, isPro),
+      temperature: mathMode ? 0.1 : 0.2,
+      max_tokens: getMaxTokens(youtubeMode ? "youtube" : mathMode ? "math" : mode, isPro),
       messages: [
         {
           role: "system",
           content:
-            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For math, act like a precise teacher: solve step-by-step, use LaTeX, validate calculations, and explain clearly."
+            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For math, solve step-by-step. For PDFs, use document text. For YouTube, use transcript when available, visible page context, timestamps and comments."
         },
         {
           role: "user",
@@ -605,6 +761,8 @@ ${wolfram.text ? wolfram.text : ""}
       pro: isPro,
       usedSearch: Boolean(web.text),
       usedWolfram: Boolean(wolfram.text),
+      usedYoutubeTranscript: Boolean(youtube.text),
+      youtubeVideoId: youtube.videoId || null,
       mathMode,
       pageType,
       sources: [
@@ -612,7 +770,15 @@ ${wolfram.text ? wolfram.text : ""}
           title: source.title,
           url: source.url
         })),
-        ...wolfram.sources
+        ...wolfram.sources,
+        ...(youtube.text
+          ? [
+              {
+                title: "YouTube transcript",
+                url: youtube.videoId ? `https://www.youtube.com/watch?v=${youtube.videoId}` : ""
+              }
+            ]
+          : [])
       ]
     });
   } catch (error) {

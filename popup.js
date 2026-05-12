@@ -15,6 +15,7 @@ let isGenerating = false;
 let activeMode = "chat";
 let activeMathTool = "calculator";
 let activePdfTool = "summary";
+let activeYoutubeTool = "summary";
 
 let uploadedPdfFile = null;
 let uploadedPdfName = "";
@@ -288,9 +289,7 @@ function setMathTool(tool) {
   };
 
   Object.keys(buttons).forEach(key => {
-    if (buttons[key]) {
-      buttons[key].classList.toggle("active", key === tool);
-    }
+    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
   });
 
   const data = {
@@ -320,9 +319,7 @@ function setPdfTool(tool) {
   };
 
   Object.keys(buttons).forEach(key => {
-    if (buttons[key]) {
-      buttons[key].classList.toggle("active", key === tool);
-    }
+    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
   });
 
   const data = {
@@ -344,6 +341,36 @@ function setPdfTool(tool) {
   $("result").innerHTML = `<div class="loading">${escapeHTML(status)}</div>`;
 }
 
+function setYoutubeTool(tool) {
+  activeYoutubeTool = tool;
+
+  const buttons = {
+    summary: $("ytSummaryBtn"),
+    notes: $("ytNotesBtn"),
+    moments: $("ytMomentsBtn"),
+    quiz: $("ytQuizBtn"),
+    chapters: $("ytChaptersBtn"),
+    comments: $("ytCommentsBtn")
+  };
+
+  Object.keys(buttons).forEach(key => {
+    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
+  });
+
+  const data = {
+    summary: ["Spørg fx: Lav et kort resume af videoen", "Summarize video", "YouTube summary klar"],
+    notes: ["Spørg fx: Lav study notes fra videoen", "Make notes", "YouTube notes klar"],
+    moments: ["Spørg fx: Find key moments", "Find key moments", "Key moments klar"],
+    quiz: ["Spørg fx: Lav en quiz fra videoen", "Make quiz", "YouTube quiz klar"],
+    chapters: ["Spørg fx: Find kapitler/timestamps", "Detect chapters", "Chapter detection klar"],
+    comments: ["Spørg fx: Hvad siger kommentarerne?", "Analyze comments", "Comment analysis klar"]
+  };
+
+  $("mainInput").placeholder = data[tool][0];
+  $("mainActionBtn").textContent = data[tool][1];
+  $("result").innerHTML = `<div class="loading">${data[tool]}</div>`.replace("[object Object]", data[tool][2]);
+}
+
 function setActiveMode(mode) {
   activeMode = mode;
 
@@ -352,17 +379,17 @@ function setActiveMode(mode) {
     math: $("mathModeBtn"),
     study: $("studyModeBtn"),
     analyze: $("analyzeModeBtn"),
-    pdf: $("pdfModeBtn")
+    pdf: $("pdfModeBtn"),
+    youtube: $("youtubeModeBtn")
   };
 
   Object.keys(tabs).forEach(key => {
-    if (tabs[key]) {
-      tabs[key].classList.toggle("active", key === mode);
-    }
+    if (tabs[key]) tabs[key].classList.toggle("active", key === mode);
   });
 
   $("mathTools").style.display = "none";
   $("pdfTools").style.display = "none";
+  $("youtubeTools").style.display = "none";
   $("pdfUploadBox").style.display = "none";
   $("pageActionBtn").style.display = "none";
 
@@ -408,6 +435,15 @@ function setActiveMode(mode) {
     $("pdfUploadBox").style.display = "block";
     setPdfTool(activePdfTool);
   }
+
+  if (mode === "youtube") {
+    $("panelTitle").textContent = "YouTube Mode";
+    $("panelSubtitle").textContent = "Summaries, notes, key moments, quizzes, chapters and comment analysis.";
+    $("youtubeTools").style.display = "grid";
+    $("pageActionBtn").style.display = "block";
+    $("pageActionBtn").textContent = "Read YouTube video";
+    setYoutubeTool(activeYoutubeTool);
+  }
 }
 
 function buildMathPrompt(userMessage) {
@@ -434,6 +470,73 @@ ${rules[activeMathTool]}
 
 User input:
 ${userMessage}
+`;
+}
+
+function buildYoutubePrompt(userMessage = "") {
+  const rules = {
+    summary: `
+YouTube summary mode:
+- Give a clear video summary.
+- Start with the main idea.
+- Then explain the video in sections.
+- End with the most important takeaway.
+`,
+    notes: `
+YouTube study notes mode:
+- Create study notes from the video.
+- Use headings and bullet points.
+- Explain difficult ideas simply.
+- Make it useful for revision.
+`,
+    moments: `
+Key moments mode:
+- Find the most important moments in the video.
+- Use timestamps if visible.
+- If exact timestamps are not available, group moments by topic.
+`,
+    quiz: `
+Quiz mode:
+- Create a quiz based on the video.
+- Include multiple choice and short-answer questions.
+- Add answers at the end.
+`,
+    chapters: `
+Chapter detection mode:
+- Detect chapters from description, visible timestamps or topic changes.
+- If no timestamps exist, create suggested chapters.
+`,
+    comments: `
+Comment analysis mode:
+- Analyze visible comments.
+- Summarize common opinions, warnings, questions and patterns.
+- Separate video content from comment opinions.
+`
+  };
+
+  return `
+You are Instant Answer YouTube Study Assistant.
+
+Language rule:
+${languageInstruction()}
+
+YouTube tool:
+${activeYoutubeTool}
+
+Rules:
+${rules[activeYoutubeTool]}
+
+User question:
+${userMessage || "Analyze this YouTube video."}
+
+Video/page content:
+${cleanText(currentPageText, 16000)}
+
+Important:
+- Use transcript if available in the page content.
+- Use title, description, chapters, timestamps and comments if visible.
+- Do not invent timestamps.
+- If transcript is not available, say that analysis is based on visible title, description and comments.
 `;
 }
 
@@ -524,7 +627,7 @@ async function runMainAction() {
 
   const userMessage = $("mainInput").value.trim();
 
-  if (activeMode !== "analyze" && activeMode !== "pdf" && !userMessage) return;
+  if (activeMode !== "analyze" && activeMode !== "pdf" && activeMode !== "youtube" && !userMessage) return;
 
   if (activeMode === "pdf" && !uploadedPdfFile) {
     showAnswer("PDF", "Upload PDF first", "Upload a PDF file before using PDF mode.");
@@ -532,13 +635,28 @@ async function runMainAction() {
   }
 
   isGenerating = true;
-  showLoading(activeMode === "pdf" ? "Analyzing PDF..." : "AI tænker...");
+
+  const loadingText =
+    activeMode === "pdf" ? "Analyzing PDF..." :
+    activeMode === "youtube" ? "Reading YouTube video..." :
+    "AI tænker...";
+
+  showLoading(loadingText);
 
   try {
     let data = null;
 
     if (activeMode === "pdf") {
       data = await askPdfBackend(userMessage);
+    } else if (activeMode === "youtube") {
+      const loaded = await loadPageInfo(true);
+
+      if (!loaded || currentPageType !== "youtube") {
+        showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
+        return;
+      }
+
+      data = await askBackend(buildYoutubePrompt(userMessage), "youtube");
     } else if (activeMode === "analyze") {
       const loaded = await loadPageInfo(false);
 
@@ -565,6 +683,7 @@ async function runMainAction() {
         activeMode === "study" ? "Study Help" :
         activeMode === "analyze" ? "Page Analysis" :
         activeMode === "pdf" ? `${activePdfTool} result` :
+        activeMode === "youtube" ? `${activeYoutubeTool} result` :
         "AI Answer";
 
       showAnswer(activeMode.toUpperCase(), title, data.answer, data.sources || []);
@@ -584,13 +703,30 @@ async function analyzeCurrentPage() {
   if (isGenerating) return;
 
   isGenerating = true;
-  showLoading("Analyzing page...");
+
+  const loadingText = activeMode === "youtube" ? "Reading YouTube video..." : "Analyzing page...";
+  showLoading(loadingText);
 
   try {
     const loaded = await loadPageInfo(true);
 
     if (!loaded) {
       showAnswer("PAGE", "Could not read page", "Open YouTube, Google, Reddit or a normal webpage and try again.");
+      return;
+    }
+
+    if (activeMode === "youtube") {
+      if (currentPageType !== "youtube") {
+        showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
+        return;
+      }
+
+      const data = await askBackend(buildYoutubePrompt($("mainInput").value.trim()), "youtube");
+
+      if (!data) return;
+
+      showAnswer("YOUTUBE", `${activeYoutubeTool} result`, data.answer, data.sources || []);
+      saveHistory("youtube", currentPageText, data.answer);
       return;
     }
 
@@ -686,6 +822,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("studyModeBtn").onclick = () => setActiveMode("study");
   $("analyzeModeBtn").onclick = () => setActiveMode("analyze");
   $("pdfModeBtn").onclick = () => setActiveMode("pdf");
+  $("youtubeModeBtn").onclick = () => setActiveMode("youtube");
 
   $("calcToolBtn").onclick = () => setMathTool("calculator");
   $("equationToolBtn").onclick = () => setMathTool("equation");
@@ -700,6 +837,13 @@ document.addEventListener("DOMContentLoaded", () => {
   $("pdfQuizBtn").onclick = () => setPdfTool("quiz");
   $("pdfCitationsBtn").onclick = () => setPdfTool("citations");
   $("pdfImportantBtn").onclick = () => setPdfTool("important");
+
+  $("ytSummaryBtn").onclick = () => setYoutubeTool("summary");
+  $("ytNotesBtn").onclick = () => setYoutubeTool("notes");
+  $("ytMomentsBtn").onclick = () => setYoutubeTool("moments");
+  $("ytQuizBtn").onclick = () => setYoutubeTool("quiz");
+  $("ytChaptersBtn").onclick = () => setYoutubeTool("chapters");
+  $("ytCommentsBtn").onclick = () => setYoutubeTool("comments");
 
   $("pdfFileInput").onchange = handlePdfUpload;
 
@@ -723,15 +867,83 @@ document.addEventListener("DOMContentLoaded", () => {
 async function getPageInfo() {
   const url = window.location.href;
 
-  function clean(text = "", limit = 14000) {
+  function clean(text = "", limit = 16000) {
     return String(text || "").replace(/\s+/g, " ").trim().slice(0, limit);
   }
 
   const pageTitle = document.title || "Current page";
   const bodyText = document.body?.innerText || "";
 
+  if (url.includes("youtube.com/watch")) {
+    const title =
+      document.querySelector("h1 yt-formatted-string")?.innerText ||
+      document.querySelector("h1")?.innerText ||
+      document.title;
+
+    const channel =
+      document.querySelector("#owner-name a")?.innerText ||
+      document.querySelector("ytd-channel-name a")?.innerText ||
+      "";
+
+    const description =
+      document.querySelector("#description-inline-expander")?.innerText ||
+      document.querySelector("#description")?.innerText ||
+      "";
+
+    const comments = Array.from(document.querySelectorAll("#content-text"))
+      .slice(0, 25)
+      .map(comment => comment.innerText)
+      .filter(Boolean)
+      .join("\n\n");
+
+    const timestamps = Array.from(document.querySelectorAll("a[href*='t='], a[href*='start_radio']"))
+      .slice(0, 30)
+      .map(link => link.innerText)
+      .filter(text => /\d+:\d+/.test(text))
+      .join("\n");
+
+    const visibleTranscript = Array.from(document.querySelectorAll("ytd-transcript-segment-renderer, .segment-text"))
+      .slice(0, 80)
+      .map(item => item.innerText)
+      .filter(Boolean)
+      .join("\n");
+
+    return {
+      type: "youtube",
+      label: title.slice(0, 55),
+      text: `
+PAGE TYPE:
+YouTube video
+
+VIDEO URL:
+${url}
+
+VIDEO TITLE:
+${clean(title)}
+
+CHANNEL:
+${clean(channel)}
+
+DESCRIPTION:
+${clean(description || "No visible description found.")}
+
+VISIBLE TIMESTAMPS / CHAPTERS:
+${clean(timestamps || "No visible timestamps found.")}
+
+VISIBLE TRANSCRIPT:
+${clean(visibleTranscript || "No visible transcript found. Transcript API not connected yet.")}
+
+VISIBLE COMMENTS:
+${clean(comments || "No visible comments found.")}
+
+VISIBLE PAGE TEXT:
+${clean(bodyText, 6000)}
+`
+    };
+  }
+
   return {
-    type: url.includes("youtube.com") ? "youtube" : url.includes("reddit.com") ? "reddit" : url.includes("google.") ? "google_search" : "webpage",
+    type: url.includes("reddit.com") ? "reddit" : url.includes("google.") ? "google_search" : "webpage",
     label: pageTitle.slice(0, 55),
     text: `
 PAGE URL:
