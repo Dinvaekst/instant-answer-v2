@@ -98,13 +98,17 @@ function hasReachedLimit() {
 }
 
 function updateProStatus() {
+  if (!$("proStatus")) return;
+
   $("proStatus").textContent = isProUser()
     ? "Pro"
     : `Free · ${getRemainingUsage()}/${DAILY_LIMIT}`;
 }
 
 function setPageStatus(text) {
-  $("pageStatus").textContent = text;
+  if ($("pageStatus")) {
+    $("pageStatus").textContent = text;
+  }
 }
 
 function languageInstruction() {
@@ -303,7 +307,7 @@ function setMathTool(tool) {
 
   $("mainInput").placeholder = data[tool][0];
   $("mainActionBtn").textContent = data[tool][1];
-  $("result").innerHTML = `<div class="loading">${data[tool][2]}</div>`;
+  $("result").innerHTML = `<div class="loading">${escapeHTML(data[tool][2])}</div>`;
 }
 
 function setPdfTool(tool) {
@@ -368,7 +372,7 @@ function setYoutubeTool(tool) {
 
   $("mainInput").placeholder = data[tool][0];
   $("mainActionBtn").textContent = data[tool][1];
-  $("result").innerHTML = `<div class="loading">${data[tool]}</div>`.replace("[object Object]", data[tool][2]);
+  $("result").innerHTML = `<div class="loading">${escapeHTML(data[tool][2])}</div>`;
 }
 
 function setActiveMode(mode) {
@@ -387,11 +391,11 @@ function setActiveMode(mode) {
     if (tabs[key]) tabs[key].classList.toggle("active", key === mode);
   });
 
-  $("mathTools").style.display = "none";
-  $("pdfTools").style.display = "none";
-  $("youtubeTools").style.display = "none";
-  $("pdfUploadBox").style.display = "none";
-  $("pageActionBtn").style.display = "none";
+  if ($("mathTools")) $("mathTools").style.display = "none";
+  if ($("pdfTools")) $("pdfTools").style.display = "none";
+  if ($("youtubeTools")) $("youtubeTools").style.display = "none";
+  if ($("pdfUploadBox")) $("pdfUploadBox").style.display = "none";
+  if ($("pageActionBtn")) $("pageActionBtn").style.display = "none";
 
   $("mainInput").style.display = "block";
   $("mainActionBtn").style.display = "block";
@@ -425,6 +429,7 @@ function setActiveMode(mode) {
     $("mainInput").placeholder = "Hvad vil du vide om siden?";
     $("mainActionBtn").textContent = "Ask about page";
     $("pageActionBtn").style.display = "block";
+    $("pageActionBtn").textContent = "Analyze current page";
     $("result").innerHTML = `<div class="loading">Klar til sideanalyse</div>`;
   }
 
@@ -475,43 +480,12 @@ ${userMessage}
 
 function buildYoutubePrompt(userMessage = "") {
   const rules = {
-    summary: `
-YouTube summary mode:
-- Give a clear video summary.
-- Start with the main idea.
-- Then explain the video in sections.
-- End with the most important takeaway.
-`,
-    notes: `
-YouTube study notes mode:
-- Create study notes from the video.
-- Use headings and bullet points.
-- Explain difficult ideas simply.
-- Make it useful for revision.
-`,
-    moments: `
-Key moments mode:
-- Find the most important moments in the video.
-- Use timestamps if visible.
-- If exact timestamps are not available, group moments by topic.
-`,
-    quiz: `
-Quiz mode:
-- Create a quiz based on the video.
-- Include multiple choice and short-answer questions.
-- Add answers at the end.
-`,
-    chapters: `
-Chapter detection mode:
-- Detect chapters from description, visible timestamps or topic changes.
-- If no timestamps exist, create suggested chapters.
-`,
-    comments: `
-Comment analysis mode:
-- Analyze visible comments.
-- Summarize common opinions, warnings, questions and patterns.
-- Separate video content from comment opinions.
-`
+    summary: "Give a clear video summary with main idea, sections and takeaway.",
+    notes: "Create study notes with headings, bullet points and simple explanations.",
+    moments: "Find key moments. Use timestamps only if visible. If not, group by topic.",
+    quiz: "Create a quiz from the video and include answers at the end.",
+    chapters: "Detect chapters from timestamps or topic changes. If no timestamps exist, create suggested chapters.",
+    comments: "Analyze visible comments and separate comment opinions from video content."
   };
 
   return `
@@ -533,10 +507,10 @@ Video/page content:
 ${cleanText(currentPageText, 16000)}
 
 Important:
-- Use transcript if available in the page content.
+- Use transcript if available.
 - Use title, description, chapters, timestamps and comments if visible.
 - Do not invent timestamps.
-- If transcript is not available, say that analysis is based on visible title, description and comments.
+- If transcript is not available, say analysis is based on visible title, description and comments.
 `;
 }
 
@@ -896,7 +870,7 @@ async function getPageInfo() {
       .filter(Boolean)
       .join("\n\n");
 
-    const timestamps = Array.from(document.querySelectorAll("a[href*='t='], a[href*='start_radio']"))
+    const timestamps = Array.from(document.querySelectorAll("a[href*='t=']"))
       .slice(0, 30)
       .map(link => link.innerText)
       .filter(text => /\d+:\d+/.test(text))
@@ -931,7 +905,7 @@ VISIBLE TIMESTAMPS / CHAPTERS:
 ${clean(timestamps || "No visible timestamps found.")}
 
 VISIBLE TRANSCRIPT:
-${clean(visibleTranscript || "No visible transcript found. Transcript API not connected yet.")}
+${clean(visibleTranscript || "No visible transcript found. Backend transcript will try to fetch it.")}
 
 VISIBLE COMMENTS:
 ${clean(comments || "No visible comments found.")}

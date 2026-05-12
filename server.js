@@ -60,10 +60,142 @@ function detectPageType(input = "") {
   if (text.includes("youtube.com/watch") || text.includes("page type:\nyoutube")) return "youtube";
   if (text.includes("reddit.com") || text.includes("page type:\nreddit")) return "reddit";
   if (text.includes("google search results") || text.includes("search query:")) return "google";
-  if (text.includes("current page") || text.includes("page content")) return "webpage";
   if (text.includes("pdf file") || text.includes("pdf text")) return "pdf";
+  if (text.includes("current page") || text.includes("page content")) return "webpage";
 
   return "normal";
+}
+
+function extractYouTubeVideoId(input = "") {
+  const text = String(input || "");
+
+  const patterns = [
+    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /[?&]v=([a-zA-Z0-9_-]{11})/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return "";
+}
+
+function decodeXml(text = "") {
+  return String(text)
+    .replace(/<text start="([^"]+)"[^>]*>/g, "\n[$1] ")
+    .replace(/<\/text>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n\s+/g, "\n")
+    .trim();
+}
+
+function secondsToTimestamp(seconds = 0) {
+  const total = Math.floor(Number(seconds) || 0);
+  const min = Math.floor(total / 60);
+  const sec = String(total % 60).padStart(2, "0");
+  return `${min}:${sec}`;
+}
+
+function formatTranscriptXml(xml = "") {
+  const items = [...String(xml).matchAll(/<text start="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g)];
+
+  if (items.length === 0) return decodeXml(xml);
+
+  return items
+    .map(match => {
+      const timestamp = secondsToTimestamp(match[1]);
+      const text = decodeXml(match[2]);
+      return text ? `[${timestamp}] ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function getYouTubeTranscript(input = "") {
+  const videoId = extractYouTubeVideoId(input);
+
+  if (!videoId) {
+    return { text: "", videoId: "", transcriptFound: false };
+  }
+
+  try {
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    const pageResponse = await fetch(watchUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
+    if (!pageResponse.ok) {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    const html = await pageResponse.text();
+
+    const captionMatch = html.match(/"captionTracks":(\[.*?\])\s*,\s*"audioTracks"/);
+
+    if (!captionMatch?.[1]) {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    let captionTracks = [];
+
+    try {
+      captionTracks = JSON.parse(captionMatch[1]);
+    } catch {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    if (!Array.isArray(captionTracks) || captionTracks.length === 0) {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    const preferredTrack =
+      captionTracks.find(track => track.languageCode === "da") ||
+      captionTracks.find(track => track.languageCode === "en") ||
+      captionTracks[0];
+
+    if (!preferredTrack?.baseUrl) {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    const transcriptResponse = await fetch(preferredTrack.baseUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
+    if (!transcriptResponse.ok) {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    const xml = await transcriptResponse.text();
+    const transcript = formatTranscriptXml(xml);
+
+    if (!transcript || transcript.length < 20) {
+      return { text: "", videoId, transcriptFound: false };
+    }
+
+    return {
+      text: transcript,
+      videoId,
+      transcriptFound: true
+    };
+  } catch (error) {
+    console.error("YouTube transcript error:", error.message);
+    return { text: "", videoId, transcriptFound: false };
+  }
 }
 
 function isMathRequest(input = "", mode = "") {
@@ -101,150 +233,6 @@ function shouldUseWebSearch(input = "", mode = "chat") {
   ];
 
   return searchTriggers.some(word => text.includes(word));
-}
-
-function extractYouTubeVideoId(input = "") {
-  const text = String(input || "");
-
-  const watchMatch = text.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
-  if (watchMatch?.[1]) return watchMatch[1];
-
-  const shortMatch = text.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-  if (shortMatch?.[1]) return shortMatch[1];
-
-  const embedMatch = text.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
-  if (embedMatch?.[1]) return embedMatch[1];
-
-  const vMatch = text.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-  if (vMatch?.[1]) return vMatch[1];
-
-  return "";
-}
-
-function decodeXml(text = "") {
-  return String(text)
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function getYouTubeTranscript(input = "") {
-  const videoId = extractYouTubeVideoId(input);
-
-  if (!videoId) {
-    return {
-      text: "",
-      videoId: "",
-      transcriptFound: false
-    };
-  }
-
-  try {
-    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const pageResponse = await fetch(watchUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
-    });
-
-    if (!pageResponse.ok) {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    const html = await pageResponse.text();
-
-    const captionMatch = html.match(/"captionTracks":(\[.*?\])\s*,\s*"audioTracks"/);
-
-    if (!captionMatch?.[1]) {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    let captionTracks = [];
-
-    try {
-      captionTracks = JSON.parse(captionMatch[1]);
-    } catch {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    if (!Array.isArray(captionTracks) || captionTracks.length === 0) {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    const preferredTrack =
-      captionTracks.find(track => track.languageCode === "da") ||
-      captionTracks.find(track => track.languageCode === "en") ||
-      captionTracks[0];
-
-    if (!preferredTrack?.baseUrl) {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    const transcriptUrl = preferredTrack.baseUrl;
-    const transcriptResponse = await fetch(transcriptUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
-    });
-
-    if (!transcriptResponse.ok) {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    const xml = await transcriptResponse.text();
-    const transcript = decodeXml(xml);
-
-    if (!transcript || transcript.length < 20) {
-      return {
-        text: "",
-        videoId,
-        transcriptFound: false
-      };
-    }
-
-    return {
-      text: transcript,
-      videoId,
-      transcriptFound: true
-    };
-  } catch (error) {
-    console.error("YouTube transcript error:", error.message);
-
-    return {
-      text: "",
-      videoId,
-      transcriptFound: false
-    };
-  }
 }
 
 async function searchWeb(query, isPro) {
@@ -351,7 +339,6 @@ async function askWolframAlpha(query) {
           .join("\n");
 
         if (!values) return null;
-
         return `${pod.title}:\n${values}`;
       })
       .filter(Boolean)
@@ -384,7 +371,7 @@ ${usefulPods.join("\n\n")}
 
 function buildMathPrompt(input, isPro, wolframText = "") {
   return `
-You are Instant Answer Math, an expert math teacher inside a browser extension.
+You are Instant Answer Math.
 
 User plan: ${isPro ? "PRO" : "FREE"}
 
@@ -468,20 +455,13 @@ Be the best YouTube study assistant.
 
 YouTube rules:
 - Use transcript when available.
-- Use title, description, comments and visible page context.
+- Use title, description, visible timestamps, chapters, comments and page context.
 - Create study summaries, notes, key moments, quizzes and chapter suggestions.
 - Detect chapters from timestamps if visible.
 - If exact timestamps are not available, say that and create topic-based moments.
 - Analyze comments separately from the video content.
 - Do not invent exact timestamps.
 - Be useful for students.
-
-Output:
-- Clear headings.
-- Short and useful sections.
-- If quiz is requested, include answers.
-- If notes are requested, make them easy to study from.
-- If key moments are requested, use timestamps only when present.
 
 Transcript status:
 ${transcriptText ? "Transcript found and included." : "No transcript found. Use visible page content only."}
@@ -514,21 +494,12 @@ Main rules:
 - Answer in the same language as the user.
 - Do exactly what the user asks.
 - Be direct, useful and human.
-- If the user asks for text, write the text.
-- If the user asks for a long answer, write a long answer.
-- If it cannot fit, write Part 1 and end with: "Skriv fortsæt, så skriver jeg næste del."
 - Do not invent facts, quotes, sources or page numbers.
 - Use current page context if included.
 - If web results are included, trust them more than old knowledge.
-- For Google results: understand the search intent and summarize the best answer.
+- For Google results: summarize the best answer.
 - For Reddit: summarize opinions, patterns, warnings and useful points.
 - For webpages: focus on the visible content and user question.
-
-Quality:
-- Strong structure.
-- Clear explanation.
-- Concrete examples when useful.
-- No generic filler.
 
 User input:
 ${limitText(input, isPro ? 24000 : 14000)}
@@ -541,7 +512,6 @@ function getMaxTokens(mode, isPro) {
     if (mode === "math") return 4200;
     if (mode === "pdf") return 4200;
     if (mode === "youtube") return 4200;
-    if (mode === "assignment") return 4000;
     if (mode === "study") return 3800;
     if (mode === "deep") return 3800;
     return 3500;
@@ -551,7 +521,6 @@ function getMaxTokens(mode, isPro) {
   if (mode === "math") return 1700;
   if (mode === "pdf") return 1700;
   if (mode === "youtube") return 1700;
-  if (mode === "assignment") return 1400;
   if (mode === "study") return 1400;
   if (mode === "deep") return 1400;
   return 1200;
@@ -581,30 +550,9 @@ app.get("/success", async (req, res) => {
     res.send(`
       <!DOCTYPE html>
       <html>
-        <head>
-          <title>Instant Answer Pro</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              background: #f7f7f7;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-            }
-            .box {
-              background: white;
-              padding: 28px;
-              border-radius: 16px;
-              box-shadow: 0 4px 18px rgba(0,0,0,0.1);
-              max-width: 420px;
-              text-align: center;
-            }
-            p { color: #555; line-height: 1.5; }
-          </style>
-        </head>
-        <body>
-          <div class="box">
+        <head><title>Instant Answer Pro</title></head>
+        <body style="font-family:Arial;background:#f7f7f7;display:flex;align-items:center;justify-content:center;height:100vh;">
+          <div style="background:white;padding:28px;border-radius:16px;box-shadow:0 4px 18px rgba(0,0,0,0.1);max-width:420px;text-align:center;">
             <h1>Pro activated</h1>
             <p>Thanks for upgrading to Instant Answer Pro.</p>
             <p>You can now go back to the extension.</p>
@@ -662,7 +610,7 @@ app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
         {
           role: "system",
           content:
-            "You are Instant Answer PDF Assistant. Read PDF text carefully and create summaries, study notes, flashcards, quizzes, citations and answers. Never invent page numbers or quotes."
+            "You are Instant Answer PDF Assistant. Read PDF text carefully. Never invent page numbers or quotes."
         },
         {
           role: "user",
@@ -743,7 +691,7 @@ ${youtube.text ? `YOUTUBE TRANSCRIPT:\n${youtube.text}` : ""}
         {
           role: "system",
           content:
-            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For math, solve step-by-step. For PDFs, use document text. For YouTube, use transcript when available, visible page context, timestamps and comments."
+            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For YouTube, use transcript when available, visible page context, timestamps and comments. Never invent timestamps."
         },
         {
           role: "user",
