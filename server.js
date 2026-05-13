@@ -61,6 +61,9 @@ function detectPageType(input = "") {
   if (text.includes("reddit.com") || text.includes("page type:\nreddit")) return "reddit";
   if (text.includes("google search results") || text.includes("search query:")) return "google";
   if (text.includes("pdf file") || text.includes("pdf text")) return "pdf";
+  if (text.includes("school_assignment")) return "school_assignment";
+  if (text.includes("math_page")) return "math_page";
+  if (text.includes("article")) return "article";
   if (text.includes("current page") || text.includes("page content")) return "webpage";
 
   return "normal";
@@ -124,30 +127,21 @@ function formatTranscriptXml(xml = "") {
 async function getYouTubeTranscript(input = "") {
   const videoId = extractYouTubeVideoId(input);
 
-  if (!videoId) {
-    return { text: "", videoId: "", transcriptFound: false };
-  }
+  if (!videoId) return { text: "", videoId: "", transcriptFound: false };
 
   try {
     const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     const pageResponse = await fetch(watchUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
 
-    if (!pageResponse.ok) {
-      return { text: "", videoId, transcriptFound: false };
-    }
+    if (!pageResponse.ok) return { text: "", videoId, transcriptFound: false };
 
     const html = await pageResponse.text();
-
     const captionMatch = html.match(/"captionTracks":(\[.*?\])\s*,\s*"audioTracks"/);
 
-    if (!captionMatch?.[1]) {
-      return { text: "", videoId, transcriptFound: false };
-    }
+    if (!captionMatch?.[1]) return { text: "", videoId, transcriptFound: false };
 
     let captionTracks = [];
 
@@ -166,19 +160,13 @@ async function getYouTubeTranscript(input = "") {
       captionTracks.find(track => track.languageCode === "en") ||
       captionTracks[0];
 
-    if (!preferredTrack?.baseUrl) {
-      return { text: "", videoId, transcriptFound: false };
-    }
+    if (!preferredTrack?.baseUrl) return { text: "", videoId, transcriptFound: false };
 
     const transcriptResponse = await fetch(preferredTrack.baseUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
 
-    if (!transcriptResponse.ok) {
-      return { text: "", videoId, transcriptFound: false };
-    }
+    if (!transcriptResponse.ok) return { text: "", videoId, transcriptFound: false };
 
     const xml = await transcriptResponse.text();
     const transcript = formatTranscriptXml(xml);
@@ -223,6 +211,7 @@ function shouldUseWebSearch(input = "", mode = "chat") {
   if (pageType === "google") return true;
   if (pageType === "pdf") return false;
   if (pageType === "youtube") return false;
+  if (mode === "smart") return false;
   if (isMathRequest(input, mode)) return false;
 
   const searchTriggers = [
@@ -474,7 +463,76 @@ ${limitText(input, isPro ? 20000 : 12000)}
 `;
 }
 
+function buildSmartPrompt(input, isPro, pageType) {
+  return `
+You are Instant Answer Smart Browser AI.
+
+User plan: ${isPro ? "PRO" : "FREE"}
+Page type: ${pageType}
+
+Smart browser goals:
+- Understand the browser page deeply.
+- Classify the website/page type.
+- Detect school assignments.
+- Detect math automatically.
+- Detect article/search/social/video/page type.
+- Explain selected text if included.
+- Understand Google/search result pages.
+- Give practical next steps.
+
+Rules:
+- Answer in the same language as the user.
+- Be direct and useful.
+- Do not invent facts, quotes or sources.
+- If the page has selected text, focus on it.
+- If it looks like school work, help with structure and explanation.
+- If it looks like math, solve step-by-step.
+- If it is a website, classify purpose, content and user intent.
+
+Input:
+${limitText(input, isPro ? 26000 : 14000)}
+`;
+}
+
+function buildImagePrompt({ tool, question, isPro }) {
+  const toolRules = {
+    screenshot: "Analyze this browser screenshot. Extract text, understand layout, identify questions, school assignments, math and important visual information.",
+    image: "Analyze the uploaded image. Extract visible text, understand the image and answer the user's question.",
+    context: "Use the image as browser context and explain what matters.",
+    selected: "Focus on any visible selected or highlighted text in the image.",
+    auto: "Auto-detect if the image contains math, school assignment, article, search, website UI or general content.",
+    classify: "Classify what type of page/image this is and explain the useful next steps."
+  };
+
+  return `
+You are Instant Answer Vision AI.
+
+User plan: ${isPro ? "PRO" : "FREE"}
+
+Tool:
+${tool}
+
+User question:
+${question || "Analyze this image."}
+
+Rules:
+${toolRules[tool] || toolRules.image}
+
+Important:
+- Read visible text carefully.
+- If there is math, solve it step-by-step.
+- If it is a school assignment, explain what to do.
+- If it is a webpage screenshot, classify the page and important content.
+- If you cannot read something clearly, say it honestly.
+- Answer in the same language as the user.
+`;
+}
+
 function buildPrompt(mode, input, isPro, pageType, wolframText = "", youtubeTranscript = "") {
+  if (mode === "smart") {
+    return buildSmartPrompt(input, isPro, pageType);
+  }
+
   if (mode === "youtube" || pageType === "youtube") {
     return buildYoutubePrompt(input, isPro, youtubeTranscript);
   }
@@ -512,6 +570,8 @@ function getMaxTokens(mode, isPro) {
     if (mode === "math") return 4200;
     if (mode === "pdf") return 4200;
     if (mode === "youtube") return 4200;
+    if (mode === "smart") return 4200;
+    if (mode === "vision") return 3500;
     if (mode === "study") return 3800;
     if (mode === "deep") return 3800;
     return 3500;
@@ -521,6 +581,8 @@ function getMaxTokens(mode, isPro) {
   if (mode === "math") return 1700;
   if (mode === "pdf") return 1700;
   if (mode === "youtube") return 1700;
+  if (mode === "smart") return 1700;
+  if (mode === "vision") return 1400;
   if (mode === "study") return 1400;
   if (mode === "deep") return 1400;
   return 1200;
@@ -530,7 +592,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "1.6-youtube-ai"
+    version: "1.7-smart-browser-ai"
   });
 });
 
@@ -569,6 +631,76 @@ app.get("/success", async (req, res) => {
 app.post("/check-pro", (req, res) => {
   const { deviceId } = req.body || {};
   res.json({ pro: isProUser(deviceId) });
+});
+
+app.post("/ask-image", upload.single("image"), async (req, res) => {
+  try {
+    const { deviceId, tool = "image", question = "" } = req.body || {};
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "Missing image",
+        answer: "Der mangler et billede."
+      });
+    }
+
+    const isPro = isProUser(deviceId);
+    const mimeType = req.file.mimetype || "image/png";
+    const base64 = req.file.buffer.toString("base64");
+
+    const prompt = buildImagePrompt({
+      tool,
+      question,
+      isPro
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: isPro ? "gpt-4o" : "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: getMaxTokens("vision", isPro),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Instant Answer Vision AI. Analyze screenshots and images. Extract visible text, detect math, school assignments, page types and useful context. Be honest if something is unclear."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${base64}`
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    const answer =
+      completion?.choices?.[0]?.message?.content?.trim() ||
+      "Jeg kunne ikke analysere billedet.";
+
+    res.json({
+      answer,
+      pro: isPro,
+      fileName: req.file.originalname,
+      tool
+    });
+  } catch (error) {
+    console.error("Image error:", error);
+
+    res.status(500).json({
+      error: "Image server error",
+      answer:
+        "Der skete en fejl med billedanalysen. Prøv et mindre billede eller et tydeligere screenshot."
+    });
+  }
 });
 
 app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
@@ -691,7 +823,7 @@ ${youtube.text ? `YOUTUBE TRANSCRIPT:\n${youtube.text}` : ""}
         {
           role: "system",
           content:
-            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For YouTube, use transcript when available, visible page context, timestamps and comments. Never invent timestamps."
+            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For Smart Browser AI, understand pages, selected text, websites, search pages, school assignments and math automatically."
         },
         {
           role: "user",

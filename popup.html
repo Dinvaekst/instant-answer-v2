@@ -87,17 +87,17 @@
 
     .mode-tabs {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
     }
 
     .mode-tab {
       border: 1px solid #e5e7eb;
       background: #f9fafb;
       color: #111827;
-      border-radius: 14px;
-      padding: 10px 4px;
-      font-size: 10px;
+      border-radius: 13px;
+      padding: 9px 3px;
+      font-size: 9.5px;
       font-weight: 900;
     }
 
@@ -147,7 +147,8 @@
 
     .math-tools,
     .pdf-tools,
-    .youtube-tools {
+    .youtube-tools,
+    .smart-tools {
       display: none;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 7px;
@@ -156,7 +157,8 @@
 
     .math-tool-btn,
     .pdf-tool-btn,
-    .youtube-tool-btn {
+    .youtube-tool-btn,
+    .smart-tool-btn {
       border: 1px solid #e5e7eb;
       background: white;
       color: #111827;
@@ -168,7 +170,8 @@
 
     .math-tool-btn.active,
     .pdf-tool-btn.active,
-    .youtube-tool-btn.active {
+    .youtube-tool-btn.active,
+    .smart-tool-btn.active {
       background: #111827;
       color: white;
       border-color: #111827;
@@ -188,7 +191,8 @@
       font-size: 11px;
     }
 
-    #pdfFileName {
+    #pdfFileName,
+    #imageFileName {
       margin-top: 6px;
       font-size: 11px;
       color: #6b7280;
@@ -285,7 +289,7 @@
 
     <div class="hero">
       <h1>Instant<br>Answer</h1>
-      <div class="subtitle">Choose one mode and work focused.</div>
+      <div class="subtitle">Smart AI for browser, school, math, PDF, YouTube and images.</div>
 
       <div class="status-row">
         <div id="proStatus">Free</div>
@@ -295,6 +299,7 @@
 
     <div class="mode-tabs">
       <button id="chatModeBtn" class="mode-tab active" type="button">Chat</button>
+      <button id="smartModeBtn" class="mode-tab" type="button">Smart</button>
       <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
       <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
       <button id="analyzeModeBtn" class="mode-tab" type="button">Analyze</button>
@@ -310,6 +315,15 @@
 
       <div id="result">
         <div class="loading">Ready</div>
+      </div>
+
+      <div id="smartTools" class="smart-tools">
+        <button id="smartContextBtn" class="smart-tool-btn active" type="button">Context</button>
+        <button id="selectedTextBtn" class="smart-tool-btn" type="button">Selected</button>
+        <button id="screenshotBtn" class="smart-tool-btn" type="button">Screenshot</button>
+        <button id="imageUploadBtn" class="smart-tool-btn" type="button">Image</button>
+        <button id="autoDetectBtn" class="smart-tool-btn" type="button">Auto</button>
+        <button id="classifyPageBtn" class="smart-tool-btn" type="button">Classify</button>
       </div>
 
       <div id="mathTools" class="math-tools">
@@ -342,6 +356,11 @@
       <div id="pdfUploadBox" class="file-box">
         <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
         <div id="pdfFileName">No PDF selected</div>
+      </div>
+
+      <div id="imageUploadBox" class="file-box">
+        <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
+        <div id="imageFileName">No image selected</div>
       </div>
 
       <textarea id="mainInput" placeholder="Skriv dit spørgsmål..."></textarea>

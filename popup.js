@@ -13,12 +13,16 @@ let pageLoaded = false;
 
 let isGenerating = false;
 let activeMode = "chat";
+let activeSmartTool = "context";
 let activeMathTool = "calculator";
 let activePdfTool = "summary";
 let activeYoutubeTool = "summary";
 
 let uploadedPdfFile = null;
 let uploadedPdfName = "";
+
+let uploadedImageFile = null;
+let uploadedImageName = "";
 
 let chatMessages = JSON.parse(localStorage.getItem("ia_chat_messages") || "[]");
 
@@ -106,9 +110,7 @@ function updateProStatus() {
 }
 
 function setPageStatus(text) {
-  if ($("pageStatus")) {
-    $("pageStatus").textContent = text;
-  }
+  if ($("pageStatus")) $("pageStatus").textContent = text;
 }
 
 function languageInstruction() {
@@ -169,10 +171,7 @@ async function checkProStatus() {
     });
 
     const data = await response.json();
-
-    if (data.pro) {
-      setProUser(true);
-    }
+    if (data.pro) setProUser(true);
   } catch (error) {
     console.error("Pro check failed:", error);
   } finally {
@@ -199,9 +198,7 @@ async function askBackend(input, mode) {
 
   const response = await fetch(ASK_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       input,
       mode,
@@ -211,10 +208,7 @@ async function askBackend(input, mode) {
 
   const data = await response.json();
 
-  if (data.pro) {
-    setProUser(true);
-  }
-
+  if (data.pro) setProUser(true);
   updateProStatus();
 
   if (!response.ok || !data.answer) {
@@ -251,14 +245,48 @@ async function askPdfBackend(question = "") {
 
   const data = await response.json();
 
-  if (data.pro) {
-    setProUser(true);
-  }
-
+  if (data.pro) setProUser(true);
   updateProStatus();
 
   if (!response.ok || !data.answer) {
     throw new Error(data.answer || "Could not analyze PDF.");
+  }
+
+  increaseUsage();
+  updateProStatus();
+
+  return data;
+}
+
+async function askImageBackend(question = "", imageFile = uploadedImageFile) {
+  if (hasReachedLimit()) {
+    showAnswer("PRO", "Upgrade to Pro", "You have used your free answers today.");
+    return null;
+  }
+
+  if (!imageFile) {
+    showAnswer("IMAGE", "Upload image first", "Upload an image before using image analysis.");
+    return null;
+  }
+
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  formData.append("deviceId", getDeviceId());
+  formData.append("tool", activeSmartTool);
+  formData.append("question", question || "");
+
+  const response = await fetch(`${BACKEND_URL}/ask-image`, {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await response.json();
+
+  if (data.pro) setProUser(true);
+  updateProStatus();
+
+  if (!response.ok || !data.answer) {
+    throw new Error(data.answer || "Could not analyze image.");
   }
 
   increaseUsage();
@@ -278,6 +306,41 @@ function renderChatMessages() {
       ${formatAnswer(msg.content)}
     </div>
   `).join("");
+}
+
+function setSmartTool(tool) {
+  activeSmartTool = tool;
+
+  const buttons = {
+    context: $("smartContextBtn"),
+    selected: $("selectedTextBtn"),
+    screenshot: $("screenshotBtn"),
+    image: $("imageUploadBtn"),
+    auto: $("autoDetectBtn"),
+    classify: $("classifyPageBtn")
+  };
+
+  Object.keys(buttons).forEach(key => {
+    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
+  });
+
+  const data = {
+    context: ["Spørg om hele siden...", "Use smart context", "Smart context klar"],
+    selected: ["Marker tekst på siden og spørg...", "Ask selected text", "Selected text klar"],
+    screenshot: ["Spørg om screenshot...", "Analyze screenshot", "Screenshot OCR klar"],
+    image: ["Upload billede og spørg...", "Analyze image", "Image analysis klar"],
+    auto: ["Indsæt opgave/tekst, så finder AI typen...", "Auto detect", "Auto detection klar"],
+    classify: ["Klassificer siden og forklar den...", "Classify page", "Website classification klar"]
+  };
+
+  $("mainInput").placeholder = data[tool][0];
+  $("mainActionBtn").textContent = data[tool][1];
+
+  if ($("imageUploadBox")) {
+    $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
+  }
+
+  $("result").innerHTML = `<div class="loading">${escapeHTML(data[tool][2])}</div>`;
 }
 
 function setMathTool(tool) {
@@ -380,6 +443,7 @@ function setActiveMode(mode) {
 
   const tabs = {
     chat: $("chatModeBtn"),
+    smart: $("smartModeBtn"),
     math: $("mathModeBtn"),
     study: $("studyModeBtn"),
     analyze: $("analyzeModeBtn"),
@@ -391,10 +455,12 @@ function setActiveMode(mode) {
     if (tabs[key]) tabs[key].classList.toggle("active", key === mode);
   });
 
+  if ($("smartTools")) $("smartTools").style.display = "none";
   if ($("mathTools")) $("mathTools").style.display = "none";
   if ($("pdfTools")) $("pdfTools").style.display = "none";
   if ($("youtubeTools")) $("youtubeTools").style.display = "none";
   if ($("pdfUploadBox")) $("pdfUploadBox").style.display = "none";
+  if ($("imageUploadBox")) $("imageUploadBox").style.display = "none";
   if ($("pageActionBtn")) $("pageActionBtn").style.display = "none";
 
   $("mainInput").style.display = "block";
@@ -406,6 +472,15 @@ function setActiveMode(mode) {
     $("mainInput").placeholder = "Skriv dit spørgsmål...";
     $("mainActionBtn").textContent = "Send";
     renderChatMessages();
+  }
+
+  if (mode === "smart") {
+    $("panelTitle").textContent = "Smart Browser AI";
+    $("panelSubtitle").textContent = "Understand selected text, screenshots, images, assignments, math and websites.";
+    $("smartTools").style.display = "grid";
+    $("pageActionBtn").style.display = "block";
+    $("pageActionBtn").textContent = "Read current page";
+    setSmartTool(activeSmartTool);
   }
 
   if (mode === "math") {
@@ -475,6 +550,54 @@ ${rules[activeMathTool]}
 
 User input:
 ${userMessage}
+`;
+}
+
+function buildSmartPrompt(userMessage = "", extraText = "") {
+  const rules = {
+    context: "Use the full page context. Explain what matters and answer the user clearly.",
+    selected: "Use selected text only. Explain it, summarize it or answer the user's question about it.",
+    screenshot: "Analyze the screenshot/OCR content. Identify text, layout, questions, math or school tasks.",
+    image: "Analyze the uploaded image. Extract useful details and answer the user's question.",
+    auto: "Auto-detect if this is math, school assignment, article, search, website, or general question.",
+    classify: "Classify the website/page type, purpose, quality, important content and what the user can do next."
+  };
+
+  return `
+You are Instant Answer Smart Browser AI.
+
+Language rule:
+${languageInstruction()}
+
+Smart tool:
+${activeSmartTool}
+
+Rules:
+${rules[activeSmartTool]}
+
+User question:
+${userMessage || "Analyze this browser context."}
+
+Extra context:
+${cleanText(extraText, 8000)}
+
+Current page type:
+${currentPageType}
+
+Current page label:
+${currentPageLabel}
+
+Current page content:
+${cleanText(currentPageText, 16000)}
+
+Important:
+- Auto detect school assignments.
+- Auto detect math.
+- Auto detect article type.
+- Improve page understanding.
+- Improve website classification.
+- Improve search understanding.
+- Be clear and practical.
 `;
 }
 
@@ -575,6 +698,37 @@ async function loadPageInfo(force = false) {
   }
 }
 
+async function getSelectedTextFromPage() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab?.id) return "";
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      function: () => window.getSelection()?.toString() || ""
+    });
+
+    return results?.[0]?.result || "";
+  } catch (error) {
+    console.error("Selected text error:", error);
+    return "";
+  }
+}
+
+async function captureScreenshotAsFile() {
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+
+    return new File([blob], "screenshot.png", { type: "image/png" });
+  } catch (error) {
+    console.error("Screenshot error:", error);
+    return null;
+  }
+}
+
 function buildAnalyzePrompt(userMessage = "") {
   return `
 You are Instant Answer.
@@ -601,10 +755,21 @@ async function runMainAction() {
 
   const userMessage = $("mainInput").value.trim();
 
-  if (activeMode !== "analyze" && activeMode !== "pdf" && activeMode !== "youtube" && !userMessage) return;
+  if (
+    activeMode !== "analyze" &&
+    activeMode !== "pdf" &&
+    activeMode !== "youtube" &&
+    activeMode !== "smart" &&
+    !userMessage
+  ) return;
 
   if (activeMode === "pdf" && !uploadedPdfFile) {
     showAnswer("PDF", "Upload PDF first", "Upload a PDF file before using PDF mode.");
+    return;
+  }
+
+  if (activeMode === "smart" && activeSmartTool === "image" && !uploadedImageFile) {
+    showAnswer("IMAGE", "Upload image first", "Upload an image before using Image mode.");
     return;
   }
 
@@ -613,6 +778,7 @@ async function runMainAction() {
   const loadingText =
     activeMode === "pdf" ? "Analyzing PDF..." :
     activeMode === "youtube" ? "Reading YouTube video..." :
+    activeMode === "smart" ? "Smart AI analyzing..." :
     "AI tænker...";
 
   showLoading(loadingText);
@@ -622,6 +788,8 @@ async function runMainAction() {
 
     if (activeMode === "pdf") {
       data = await askPdfBackend(userMessage);
+    } else if (activeMode === "smart") {
+      data = await runSmartAction(userMessage);
     } else if (activeMode === "youtube") {
       const loaded = await loadPageInfo(true);
 
@@ -658,12 +826,13 @@ async function runMainAction() {
         activeMode === "analyze" ? "Page Analysis" :
         activeMode === "pdf" ? `${activePdfTool} result` :
         activeMode === "youtube" ? `${activeYoutubeTool} result` :
+        activeMode === "smart" ? `${activeSmartTool} result` :
         "AI Answer";
 
       showAnswer(activeMode.toUpperCase(), title, data.answer, data.sources || []);
     }
 
-    saveHistory(activeMode, userMessage || uploadedPdfName || currentPageText, data.answer);
+    saveHistory(activeMode, userMessage || uploadedPdfName || uploadedImageName || currentPageText, data.answer);
     $("mainInput").value = "";
   } catch (error) {
     console.error(error);
@@ -673,12 +842,53 @@ async function runMainAction() {
   }
 }
 
+async function runSmartAction(userMessage = "") {
+  if (activeSmartTool === "image") {
+    return await askImageBackend(userMessage, uploadedImageFile);
+  }
+
+  if (activeSmartTool === "screenshot") {
+    const screenshotFile = await captureScreenshotAsFile();
+
+    if (!screenshotFile) {
+      showAnswer("SCREENSHOT", "Could not capture screenshot", "Chrome could not capture this tab.");
+      return null;
+    }
+
+    return await askImageBackend(userMessage, screenshotFile);
+  }
+
+  let extraText = "";
+
+  if (activeSmartTool === "selected") {
+    extraText = await getSelectedTextFromPage();
+
+    if (!extraText) {
+      showAnswer("SELECTED", "No selected text", "Markér tekst på siden først, og prøv igen.");
+      return null;
+    }
+  }
+
+  const loaded = await loadPageInfo(true);
+
+  if (!loaded) {
+    showAnswer("SMART", "Could not read page", "Open a normal webpage and try again.");
+    return null;
+  }
+
+  return await askBackend(buildSmartPrompt(userMessage, extraText), "smart");
+}
+
 async function analyzeCurrentPage() {
   if (isGenerating) return;
 
   isGenerating = true;
 
-  const loadingText = activeMode === "youtube" ? "Reading YouTube video..." : "Analyzing page...";
+  const loadingText =
+    activeMode === "youtube" ? "Reading YouTube video..." :
+    activeMode === "smart" ? "Reading browser context..." :
+    "Analyzing page...";
+
   showLoading(loadingText);
 
   try {
@@ -686,6 +896,14 @@ async function analyzeCurrentPage() {
 
     if (!loaded) {
       showAnswer("PAGE", "Could not read page", "Open YouTube, Google, Reddit or a normal webpage and try again.");
+      return;
+    }
+
+    if (activeMode === "smart") {
+      const data = await askBackend(buildSmartPrompt($("mainInput").value.trim()), "smart");
+      if (!data) return;
+      showAnswer("SMART", `${activeSmartTool} result`, data.answer, data.sources || []);
+      saveHistory("smart", currentPageText, data.answer);
       return;
     }
 
@@ -744,6 +962,34 @@ async function handlePdfUpload(event) {
   );
 }
 
+function handleImageUpload(event) {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  const validTypes = ["image/png", "image/jpeg", "image/webp"];
+
+  if (!validTypes.includes(file.type)) {
+    uploadedImageFile = null;
+    uploadedImageName = "";
+    $("imageFileName").textContent = "Please choose PNG, JPG or WEBP";
+    showAnswer("IMAGE", "Wrong file type", "Please upload PNG, JPG or WEBP.");
+    return;
+  }
+
+  uploadedImageFile = file;
+  uploadedImageName = file.name;
+
+  $("imageFileName").textContent = `Selected: ${uploadedImageName}`;
+  setPageStatus(`${uploadedImageName} · Image selected`);
+
+  showAnswer(
+    "IMAGE",
+    "Image selected",
+    `Image selected: ${uploadedImageName}\n\nAsk a question or press Analyze image.`
+  );
+}
+
 function showHistory() {
   const history = JSON.parse(localStorage.getItem("instant_answer_history") || "[]");
 
@@ -779,9 +1025,13 @@ function clearAll() {
 
   uploadedPdfFile = null;
   uploadedPdfName = "";
+  uploadedImageFile = null;
+  uploadedImageName = "";
 
   if ($("pdfFileInput")) $("pdfFileInput").value = "";
   if ($("pdfFileName")) $("pdfFileName").textContent = "No PDF selected";
+  if ($("imageFileInput")) $("imageFileInput").value = "";
+  if ($("imageFileName")) $("imageFileName").textContent = "No image selected";
 
   setPageStatus("Ready");
   setActiveMode("chat");
@@ -792,11 +1042,19 @@ document.addEventListener("DOMContentLoaded", () => {
   setPageStatus("Ready");
 
   $("chatModeBtn").onclick = () => setActiveMode("chat");
+  $("smartModeBtn").onclick = () => setActiveMode("smart");
   $("mathModeBtn").onclick = () => setActiveMode("math");
   $("studyModeBtn").onclick = () => setActiveMode("study");
   $("analyzeModeBtn").onclick = () => setActiveMode("analyze");
   $("pdfModeBtn").onclick = () => setActiveMode("pdf");
   $("youtubeModeBtn").onclick = () => setActiveMode("youtube");
+
+  $("smartContextBtn").onclick = () => setSmartTool("context");
+  $("selectedTextBtn").onclick = () => setSmartTool("selected");
+  $("screenshotBtn").onclick = () => setSmartTool("screenshot");
+  $("imageUploadBtn").onclick = () => setSmartTool("image");
+  $("autoDetectBtn").onclick = () => setSmartTool("auto");
+  $("classifyPageBtn").onclick = () => setSmartTool("classify");
 
   $("calcToolBtn").onclick = () => setMathTool("calculator");
   $("equationToolBtn").onclick = () => setMathTool("equation");
@@ -820,6 +1078,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("ytCommentsBtn").onclick = () => setYoutubeTool("comments");
 
   $("pdfFileInput").onchange = handlePdfUpload;
+  $("imageFileInput").onchange = handleImageUpload;
 
   $("mainActionBtn").onclick = runMainAction;
   $("pageActionBtn").onclick = analyzeCurrentPage;
@@ -847,6 +1106,30 @@ async function getPageInfo() {
 
   const pageTitle = document.title || "Current page";
   const bodyText = document.body?.innerText || "";
+  const selectedText = window.getSelection()?.toString() || "";
+
+  const headings = Array.from(document.querySelectorAll("h1, h2, h3"))
+    .map(h => h.innerText)
+    .filter(Boolean)
+    .slice(0, 30)
+    .join("\n");
+
+  const forms = Array.from(document.querySelectorAll("input, textarea, select"))
+    .slice(0, 20)
+    .map(el => `${el.tagName}: ${el.placeholder || el.name || el.id || ""}`)
+    .filter(Boolean)
+    .join("\n");
+
+  let detectedType = "webpage";
+
+  const lower = bodyText.toLowerCase();
+
+  if (url.includes("youtube.com/watch")) detectedType = "youtube";
+  else if (url.includes("reddit.com")) detectedType = "reddit";
+  else if (url.includes("google.") && url.includes("/search")) detectedType = "google_search";
+  else if (lower.includes("assignment") || lower.includes("opgave") || lower.includes("aflevering")) detectedType = "school_assignment";
+  else if (/[=+\-*/^√π∫Σ]/.test(bodyText) && /\d/.test(bodyText)) detectedType = "math_page";
+  else if (document.querySelector("article") || headings.length > 80) detectedType = "article";
 
   if (url.includes("youtube.com/watch")) {
     const title =
@@ -910,6 +1193,9 @@ ${clean(visibleTranscript || "No visible transcript found. Backend transcript wi
 VISIBLE COMMENTS:
 ${clean(comments || "No visible comments found.")}
 
+SELECTED TEXT:
+${clean(selectedText || "No selected text.")}
+
 VISIBLE PAGE TEXT:
 ${clean(bodyText, 6000)}
 `
@@ -917,14 +1203,26 @@ ${clean(bodyText, 6000)}
   }
 
   return {
-    type: url.includes("reddit.com") ? "reddit" : url.includes("google.") ? "google_search" : "webpage",
+    type: detectedType,
     label: pageTitle.slice(0, 55),
     text: `
 PAGE URL:
 ${url}
 
+PAGE TYPE DETECTED:
+${detectedType}
+
 PAGE TITLE:
 ${clean(pageTitle)}
+
+HEADINGS:
+${clean(headings || "No headings found.")}
+
+SELECTED TEXT:
+${clean(selectedText || "No selected text.")}
+
+FORM FIELDS:
+${clean(forms || "No form fields found.")}
 
 VISIBLE CONTENT:
 ${clean(bodyText)}
