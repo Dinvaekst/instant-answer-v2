@@ -1,375 +1,582 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Instant Answer</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Instant Answer</title>
 
-  <style>
-    * { box-sizing: border-box; }
+<style>
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
 
-    body {
-      width: 430px;
-      height: 620px;
-      margin: 0;
-      padding: 14px;
-      font-family: Arial, sans-serif;
-      background: #eef1f6;
-      color: #111827;
-      overflow: hidden;
-    }
+:root{
+  --bg:#030712;
+  --card:rgba(15,23,42,.72);
+  --card2:rgba(17,25,40,.82);
+  --border:rgba(255,255,255,.08);
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --primary:#7c3aed;
+  --primary2:#2563eb;
+  --hover:rgba(255,255,255,.05);
+  --shadow:0 20px 60px rgba(0,0,0,.45);
+  --radius:26px;
+}
 
-    .app {
-      height: 100%;
-      background: #ffffff;
-      border-radius: 26px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      box-shadow: 0 18px 45px rgba(15,23,42,0.12);
-    }
+body{
+  width:430px;
+  height:620px;
+  overflow:hidden;
+  font-family:Inter, Arial, sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(circle at top left,#312e81 0%,transparent 32%),
+    radial-gradient(circle at bottom right,#0f172a 0%,transparent 35%),
+    #020617;
+  padding:12px;
+}
 
-    .top { display: flex; justify-content: space-between; align-items: center; }
-    .brand { font-size: 14px; font-weight: 900; }
-    .top-actions { display: flex; gap: 8px; }
+.app{
+  position:relative;
+  height:100%;
+  overflow:hidden;
+  border-radius:34px;
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  background:var(--card);
+  border:1px solid var(--border);
+  backdrop-filter:blur(18px);
+  box-shadow:var(--shadow);
+}
 
-    button { font-family: Arial, sans-serif; cursor: pointer; }
+.app::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.06),transparent);
+  pointer-events:none;
+}
 
-    .small-btn {
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-      border-radius: 12px;
-      padding: 8px 11px;
-      font-size: 11px;
-      font-weight: 900;
-      color: #111827;
-    }
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
 
-    .hero h1 {
-      margin: 8px 0 6px;
-      font-size: 30px;
-      line-height: 0.95;
-      letter-spacing: -1.4px;
-      font-weight: 900;
-    }
+.brand{
+  font-size:14px;
+  font-weight:800;
+  background:linear-gradient(90deg,#ffffff,#c4b5fd);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
 
-    .subtitle {
-      font-size: 13px;
-      color: #6b7280;
-      line-height: 1.45;
-      margin-bottom: 10px;
-    }
+.top-actions{
+  display:flex;
+  gap:8px;
+}
 
-    .status-row { display: flex; gap: 8px; align-items: center; }
+button{
+  border:none;
+  cursor:pointer;
+  transition:all .2s ease;
+  font-family:Inter, Arial, sans-serif;
+}
 
-    #proStatus {
-      background: #111827;
-      color: white;
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 11px;
-      font-weight: 900;
-      white-space: nowrap;
-    }
+.small-btn{
+  padding:9px 13px;
+  border-radius:14px;
+  font-size:11px;
+  font-weight:700;
+  color:white;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.06);
+}
 
-    #pageStatus {
-      flex: 1;
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 9px 11px;
-      font-size: 12px;
-      color: #6b7280;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
+.small-btn:hover{
+  transform:translateY(-1px);
+  background:rgba(255,255,255,.08);
+}
 
-    .mode-tabs {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 5px;
-    }
+.hero h1{
+  margin-top:6px;
+  font-size:42px;
+  line-height:.92;
+  letter-spacing:-2px;
+  font-weight:900;
+  background:linear-gradient(180deg,#ffffff,#c4b5fd);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
 
-    .mode-tab {
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-      color: #111827;
-      border-radius: 13px;
-      padding: 9px 3px;
-      font-size: 9.5px;
-      font-weight: 900;
-    }
+.subtitle{
+  margin-top:10px;
+  font-size:13px;
+  line-height:1.5;
+  color:var(--muted);
+}
 
-    .mode-tab.active {
-      background: #111827;
-      color: white;
-      border-color: #111827;
-    }
+.status-row{
+  display:flex;
+  gap:8px;
+  margin-top:14px;
+}
 
-    .panel {
-      flex: 1;
-      min-height: 0;
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 20px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-    }
+#proStatus{
+  padding:10px 14px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  color:white;
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  box-shadow:0 10px 25px rgba(124,58,237,.35);
+}
 
-    .panel-head { margin-bottom: 10px; }
-    .panel-title { font-size: 18px; font-weight: 900; margin-bottom: 3px; }
-    .panel-subtitle { font-size: 12px; color: #6b7280; line-height: 1.4; }
+#pageStatus{
+  flex:1;
+  padding:10px 14px;
+  border-radius:16px;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  font-size:12px;
+  font-weight:600;
+  color:var(--muted);
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
 
-    #result {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      font-size: 14px;
-      line-height: 1.65;
-      color: #111827;
-      margin-bottom: 10px;
-    }
+.mode-tabs{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:5px;
+}
 
-    textarea {
-      width: 100%;
-      height: 76px;
-      resize: none;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
-      font-size: 13px;
-      outline: none;
-      background: white;
-    }
+.mode-tab{
+  padding:9px 3px;
+  border-radius:13px;
+  font-size:9.5px;
+  font-weight:800;
+  color:var(--muted);
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
 
-    .math-tools,
-    .pdf-tools,
-    .youtube-tools,
-    .smart-tools {
-      display: none;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 7px;
-      margin-bottom: 8px;
-    }
+.mode-tab:hover{
+  background:rgba(255,255,255,.08);
+}
 
-    .math-tool-btn,
-    .pdf-tool-btn,
-    .youtube-tool-btn,
-    .smart-tool-btn {
-      border: 1px solid #e5e7eb;
-      background: white;
-      color: #111827;
-      border-radius: 12px;
-      padding: 8px 6px;
-      font-size: 10px;
-      font-weight: 900;
-    }
+.mode-tab.active{
+  color:white;
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  border:none;
+  box-shadow:0 10px 24px rgba(124,58,237,.35);
+}
 
-    .math-tool-btn.active,
-    .pdf-tool-btn.active,
-    .youtube-tool-btn.active,
-    .smart-tool-btn.active {
-      background: #111827;
-      color: white;
-      border-color: #111827;
-    }
+.panel{
+  flex:1;
+  min-height:0;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  border-radius:28px;
+  padding:16px;
+  background:var(--card2);
+  border:1px solid rgba(255,255,255,.06);
+}
 
-    .file-box {
-      display: none;
-      margin-bottom: 8px;
-      background: white;
-      border: 1px dashed #cbd5e1;
-      border-radius: 14px;
-      padding: 10px;
-    }
+.panel-head{
+  margin-bottom:14px;
+}
 
-    .file-box input {
-      width: 100%;
-      font-size: 11px;
-    }
+.panel-title{
+  font-size:21px;
+  font-weight:800;
+  color:white;
+}
 
-    #pdfFileName,
-    #imageFileName {
-      margin-top: 6px;
-      font-size: 11px;
-      color: #6b7280;
-      font-weight: 800;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
+.panel-subtitle{
+  margin-top:5px;
+  font-size:12px;
+  line-height:1.5;
+  color:var(--muted);
+}
 
-    .primary-btn, .secondary-btn {
-      width: 100%;
-      border-radius: 14px;
-      padding: 12px;
-      font-weight: 900;
-      margin-top: 8px;
-    }
+#result{
+  flex:1;
+  overflow-y:auto;
+  padding-right:4px;
+  margin-bottom:12px;
+  font-size:14px;
+  line-height:1.7;
+}
 
-    .primary-btn {
-      border: 0;
-      background: #111827;
-      color: white;
-    }
+.msg{
+  margin-bottom:12px;
+  padding:14px;
+  border-radius:20px;
+  animation:fadeUp .25s ease;
+}
 
-    .secondary-btn {
-      border: 1px solid #e5e7eb;
-      background: white;
-      color: #111827;
-    }
+.user-msg{
+  margin-left:40px;
+  color:white;
+  background:linear-gradient(135deg,var(--primary),#9333ea);
+  box-shadow:0 10px 25px rgba(124,58,237,.35);
+}
 
-    .msg { margin-bottom: 10px; padding: 10px; border-radius: 14px; }
-    .user-msg { background: #111827; color: white; }
-    .ai-msg { background: white; border: 1px solid #e5e7eb; }
+.ai-msg{
+  margin-right:20px;
+  color:#e2e8f0;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  backdrop-filter:blur(10px);
+}
 
-    .answer-label {
-      font-size: 10px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-weight: 900;
-      margin-bottom: 6px;
-    }
+.msg-role{
+  font-size:10px;
+  font-weight:800;
+  opacity:.65;
+  margin-bottom:6px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+}
 
-    .answer-title {
-      font-size: 19px;
-      font-weight: 900;
-      margin-bottom: 10px;
-      color: #020617;
-    }
+.answer-label{
+  font-size:10px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-weight:800;
+  color:#a78bfa;
+  margin-bottom:7px;
+}
 
-    .math-formula-block,
-    .source-box,
-    .history-item {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 10px;
-      margin: 10px 0;
-    }
+.answer-title{
+  font-size:20px;
+  font-weight:800;
+  margin-bottom:10px;
+  color:white;
+}
 
-    .math-inline {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 2px 5px;
-      font-weight: 800;
-    }
+.answer-content h1,
+.answer-content h2,
+.answer-content h3{
+  margin:12px 0 6px;
+  color:white;
+}
 
-    .loading {
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #6b7280;
-      font-size: 13px;
-      font-weight: 800;
-      text-align: center;
-    }
+textarea{
+  width:100%;
+  height:82px;
+  resize:none;
+  outline:none;
+  border:none;
+  padding:14px;
+  border-radius:18px;
+  font-size:13px;
+  line-height:1.5;
+  font-family:Inter, Arial, sans-serif;
+  color:white;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
 
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }
-  </style>
+textarea::placeholder{
+  color:#64748b;
+}
+
+textarea:focus{
+  border:1px solid rgba(124,58,237,.6);
+  box-shadow:0 0 0 4px rgba(124,58,237,.15);
+}
+
+.primary-btn,
+.secondary-btn{
+  width:100%;
+  margin-top:10px;
+  padding:13px;
+  border-radius:18px;
+  font-size:13px;
+  font-weight:800;
+}
+
+.primary-btn{
+  color:white;
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  box-shadow:0 12px 30px rgba(124,58,237,.35);
+}
+
+.primary-btn:hover{
+  transform:translateY(-1px) scale(1.01);
+}
+
+.secondary-btn{
+  color:white;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+.secondary-btn:hover{
+  background:rgba(255,255,255,.08);
+}
+
+.smart-tools,
+.math-tools,
+.pdf-tools,
+.youtube-tools{
+  display:none;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin-bottom:10px;
+}
+
+.smart-tool-btn,
+.math-tool-btn,
+.pdf-tool-btn,
+.youtube-tool-btn{
+  padding:10px 6px;
+  border-radius:14px;
+  font-size:10px;
+  font-weight:800;
+  color:var(--muted);
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+.smart-tool-btn.active,
+.math-tool-btn.active,
+.pdf-tool-btn.active,
+.youtube-tool-btn.active{
+  color:white;
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+}
+
+.file-box{
+  display:none;
+  margin-bottom:10px;
+  padding:12px;
+  border-radius:18px;
+  background:rgba(255,255,255,.03);
+  border:1px dashed rgba(255,255,255,.12);
+}
+
+.file-box input{
+  width:100%;
+  color:white;
+}
+
+#pdfFileName,
+#imageFileName{
+  margin-top:8px;
+  font-size:11px;
+  color:var(--muted);
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+
+.math-formula-block,
+.source-box,
+.history-item{
+  margin-top:10px;
+  padding:12px;
+  border-radius:18px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+.math-inline{
+  padding:3px 6px;
+  border-radius:8px;
+  background:rgba(255,255,255,.06);
+  color:#c4b5fd;
+  font-weight:700;
+}
+
+.code-block{
+  background:rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.08);
+  padding:12px;
+  border-radius:14px;
+  overflow:auto;
+  margin:10px 0;
+  font-size:12px;
+  line-height:1.6;
+  color:#e5e7eb;
+}
+
+.loading{
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  font-size:13px;
+  color:var(--muted);
+}
+
+.typing-dots{
+  display:flex;
+  justify-content:center;
+  gap:5px;
+  margin-top:12px;
+}
+
+.typing-dots span{
+  width:7px;
+  height:7px;
+  background:#a78bfa;
+  border-radius:50%;
+  animation:dotPulse 1.2s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2){
+  animation-delay:.2s;
+}
+
+.typing-dots span:nth-child(3){
+  animation-delay:.4s;
+}
+
+::-webkit-scrollbar{
+  width:6px;
+}
+
+::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+}
+
+@keyframes fadeUp{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+
+@keyframes dotPulse{
+  0%,80%,100%{
+    opacity:.25;
+    transform:scale(.8);
+  }
+
+  40%{
+    opacity:1;
+    transform:scale(1.15);
+  }
+}
+</style>
 </head>
 
 <body>
-  <div class="app">
+<div class="app">
 
-    <div class="top">
-      <div class="brand">Instant Answer AI</div>
-      <div class="top-actions">
-        <button id="historyBtn" class="small-btn" type="button">History</button>
-        <button id="clearBtn" class="small-btn" type="button">Clear</button>
-      </div>
+  <div class="top">
+    <div class="brand">Instant Answer AI</div>
+
+    <div class="top-actions">
+      <button id="historyBtn" class="small-btn" type="button">History</button>
+      <button id="clearBtn" class="small-btn" type="button">Clear</button>
     </div>
-
-    <div class="hero">
-      <h1>Instant<br>Answer</h1>
-      <div class="subtitle">Smart AI for browser, school, math, PDF, YouTube and images.</div>
-
-      <div class="status-row">
-        <div id="proStatus">Free</div>
-        <div id="pageStatus">Ready</div>
-      </div>
-    </div>
-
-    <div class="mode-tabs">
-      <button id="chatModeBtn" class="mode-tab active" type="button">Chat</button>
-      <button id="smartModeBtn" class="mode-tab" type="button">Smart</button>
-      <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
-      <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
-      <button id="analyzeModeBtn" class="mode-tab" type="button">Analyze</button>
-      <button id="pdfModeBtn" class="mode-tab" type="button">PDF</button>
-      <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <div id="panelTitle" class="panel-title">Chat Mode</div>
-        <div id="panelSubtitle" class="panel-subtitle">Ask anything and get a clear answer.</div>
-      </div>
-
-      <div id="result">
-        <div class="loading">Ready</div>
-      </div>
-
-      <div id="smartTools" class="smart-tools">
-        <button id="smartContextBtn" class="smart-tool-btn active" type="button">Context</button>
-        <button id="selectedTextBtn" class="smart-tool-btn" type="button">Selected</button>
-        <button id="screenshotBtn" class="smart-tool-btn" type="button">Screenshot</button>
-        <button id="imageUploadBtn" class="smart-tool-btn" type="button">Image</button>
-        <button id="autoDetectBtn" class="smart-tool-btn" type="button">Auto</button>
-        <button id="classifyPageBtn" class="smart-tool-btn" type="button">Classify</button>
-      </div>
-
-      <div id="mathTools" class="math-tools">
-        <button id="calcToolBtn" class="math-tool-btn active" type="button">Calculator</button>
-        <button id="equationToolBtn" class="math-tool-btn" type="button">Equation</button>
-        <button id="percentToolBtn" class="math-tool-btn" type="button">Percent</button>
-        <button id="graphToolBtn" class="math-tool-btn" type="button">Graph</button>
-        <button id="formulaToolBtn" class="math-tool-btn" type="button">Formula</button>
-        <button id="wordToolBtn" class="math-tool-btn" type="button">Word</button>
-      </div>
-
-      <div id="pdfTools" class="pdf-tools">
-        <button id="pdfSummaryBtn" class="pdf-tool-btn active" type="button">Summary</button>
-        <button id="pdfNotesBtn" class="pdf-tool-btn" type="button">Notes</button>
-        <button id="pdfFlashcardsBtn" class="pdf-tool-btn" type="button">Cards</button>
-        <button id="pdfQuizBtn" class="pdf-tool-btn" type="button">Quiz</button>
-        <button id="pdfCitationsBtn" class="pdf-tool-btn" type="button">Citations</button>
-        <button id="pdfImportantBtn" class="pdf-tool-btn" type="button">Important</button>
-      </div>
-
-      <div id="youtubeTools" class="youtube-tools">
-        <button id="ytSummaryBtn" class="youtube-tool-btn active" type="button">Summary</button>
-        <button id="ytNotesBtn" class="youtube-tool-btn" type="button">Notes</button>
-        <button id="ytMomentsBtn" class="youtube-tool-btn" type="button">Moments</button>
-        <button id="ytQuizBtn" class="youtube-tool-btn" type="button">Quiz</button>
-        <button id="ytChaptersBtn" class="youtube-tool-btn" type="button">Chapters</button>
-        <button id="ytCommentsBtn" class="youtube-tool-btn" type="button">Comments</button>
-      </div>
-
-      <div id="pdfUploadBox" class="file-box">
-        <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
-        <div id="pdfFileName">No PDF selected</div>
-      </div>
-
-      <div id="imageUploadBox" class="file-box">
-        <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
-        <div id="imageFileName">No image selected</div>
-      </div>
-
-      <textarea id="mainInput" placeholder="Skriv dit spørgsmål..."></textarea>
-      <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
-      <button id="pageActionBtn" class="secondary-btn" type="button" style="display:none;">Analyze current page</button>
-    </div>
-
   </div>
 
-  <script src="popup.js"></script>
+  <div class="hero">
+    <h1>Instant<br>Answer</h1>
+
+    <div class="subtitle">
+      Smart AI for browser, school, math, PDF, YouTube and images.
+    </div>
+
+    <div class="status-row">
+      <div id="proStatus">Free</div>
+      <div id="pageStatus">Ready</div>
+    </div>
+  </div>
+
+  <div class="mode-tabs">
+    <button id="chatModeBtn" class="mode-tab active" type="button">Chat</button>
+    <button id="smartModeBtn" class="mode-tab" type="button">Smart</button>
+    <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
+    <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
+    <button id="analyzeModeBtn" class="mode-tab" type="button">Analyze</button>
+    <button id="pdfModeBtn" class="mode-tab" type="button">PDF</button>
+    <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div id="panelTitle" class="panel-title">Chat Mode</div>
+      <div id="panelSubtitle" class="panel-subtitle">Ask anything and get a clear answer.</div>
+    </div>
+
+    <div id="result">
+      <div class="loading">Ready</div>
+    </div>
+
+    <div id="smartTools" class="smart-tools">
+      <button id="smartContextBtn" class="smart-tool-btn active" type="button">Context</button>
+      <button id="selectedTextBtn" class="smart-tool-btn" type="button">Selected</button>
+      <button id="screenshotBtn" class="smart-tool-btn" type="button">Screenshot</button>
+      <button id="imageUploadBtn" class="smart-tool-btn" type="button">Image</button>
+      <button id="autoDetectBtn" class="smart-tool-btn" type="button">Auto</button>
+      <button id="classifyPageBtn" class="smart-tool-btn" type="button">Classify</button>
+    </div>
+
+    <div id="mathTools" class="math-tools">
+      <button id="calcToolBtn" class="math-tool-btn active" type="button">Calculator</button>
+      <button id="equationToolBtn" class="math-tool-btn" type="button">Equation</button>
+      <button id="percentToolBtn" class="math-tool-btn" type="button">Percent</button>
+      <button id="graphToolBtn" class="math-tool-btn" type="button">Graph</button>
+      <button id="formulaToolBtn" class="math-tool-btn" type="button">Formula</button>
+      <button id="wordToolBtn" class="math-tool-btn" type="button">Word</button>
+    </div>
+
+    <div id="pdfTools" class="pdf-tools">
+      <button id="pdfSummaryBtn" class="pdf-tool-btn active" type="button">Summary</button>
+      <button id="pdfNotesBtn" class="pdf-tool-btn" type="button">Notes</button>
+      <button id="pdfFlashcardsBtn" class="pdf-tool-btn" type="button">Cards</button>
+      <button id="pdfQuizBtn" class="pdf-tool-btn" type="button">Quiz</button>
+      <button id="pdfCitationsBtn" class="pdf-tool-btn" type="button">Citations</button>
+      <button id="pdfImportantBtn" class="pdf-tool-btn" type="button">Important</button>
+    </div>
+
+    <div id="youtubeTools" class="youtube-tools">
+      <button id="ytSummaryBtn" class="youtube-tool-btn active" type="button">Summary</button>
+      <button id="ytNotesBtn" class="youtube-tool-btn" type="button">Notes</button>
+      <button id="ytMomentsBtn" class="youtube-tool-btn" type="button">Moments</button>
+      <button id="ytQuizBtn" class="youtube-tool-btn" type="button">Quiz</button>
+      <button id="ytChaptersBtn" class="youtube-tool-btn" type="button">Chapters</button>
+      <button id="ytCommentsBtn" class="youtube-tool-btn" type="button">Comments</button>
+    </div>
+
+    <div id="pdfUploadBox" class="file-box">
+      <input id="pdfFileInput" type="file" accept="application/pdf,.pdf"/>
+      <div id="pdfFileName">No PDF selected</div>
+    </div>
+
+    <div id="imageUploadBox" class="file-box">
+      <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"/>
+      <div id="imageFileName">No image selected</div>
+    </div>
+
+    <textarea id="mainInput" placeholder="Skriv dit spørgsmål..."></textarea>
+
+    <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
+    <button id="pageActionBtn" class="secondary-btn" type="button" style="display:none;">Analyze current page</button>
+  </div>
+
+</div>
+
+<script src="popup.js"></script>
 </body>
 </html>

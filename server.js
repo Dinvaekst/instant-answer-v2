@@ -12,9 +12,7 @@ const app = express();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024
-  }
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 app.use(cors());
@@ -25,7 +23,6 @@ const openai = new OpenAI({
 });
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 const proDevices = new Set();
 
 function isProUser(deviceId) {
@@ -44,7 +41,6 @@ function limitText(text = "", max = 12000) {
 
 function extractLatestUserMessage(input = "") {
   const text = String(input || "");
-
   const latestMatch = text.match(/User's latest message:\s*([\s\S]*?)(?:\n\nRules:|\nRules:|$)/i);
   if (latestMatch?.[1]) return cleanText(latestMatch[1]).slice(0, 700);
 
@@ -126,7 +122,6 @@ function formatTranscriptXml(xml = "") {
 
 async function getYouTubeTranscript(input = "") {
   const videoId = extractYouTubeVideoId(input);
-
   if (!videoId) return { text: "", videoId: "", transcriptFound: false };
 
   try {
@@ -175,11 +170,7 @@ async function getYouTubeTranscript(input = "") {
       return { text: "", videoId, transcriptFound: false };
     }
 
-    return {
-      text: transcript,
-      videoId,
-      transcriptFound: true
-    };
+    return { text: transcript, videoId, transcriptFound: true };
   } catch (error) {
     console.error("YouTube transcript error:", error.message);
     return { text: "", videoId, transcriptFound: false };
@@ -529,17 +520,9 @@ Important:
 }
 
 function buildPrompt(mode, input, isPro, pageType, wolframText = "", youtubeTranscript = "") {
-  if (mode === "smart") {
-    return buildSmartPrompt(input, isPro, pageType);
-  }
-
-  if (mode === "youtube" || pageType === "youtube") {
-    return buildYoutubePrompt(input, isPro, youtubeTranscript);
-  }
-
-  if (isMathRequest(input, mode)) {
-    return buildMathPrompt(input, isPro, wolframText);
-  }
+  if (mode === "smart") return buildSmartPrompt(input, isPro, pageType);
+  if (mode === "youtube" || pageType === "youtube") return buildYoutubePrompt(input, isPro, youtubeTranscript);
+  if (isMathRequest(input, mode)) return buildMathPrompt(input, isPro, wolframText);
 
   return `
 You are Instant Answer.
@@ -588,11 +571,55 @@ function getMaxTokens(mode, isPro) {
   return 1200;
 }
 
+async function preparePromptData(input, mode, deviceId) {
+  const isPro = isProUser(deviceId);
+  const pageType = detectPageType(input);
+  const latestMessage = extractLatestUserMessage(input);
+
+  const mathMode = isMathRequest(input, mode);
+  const youtubeMode = mode === "youtube" || pageType === "youtube";
+  const useSearch = shouldUseWebSearch(input, mode);
+
+  const web = useSearch ? await searchWeb(latestMessage, isPro) : { text: "", sources: [] };
+  const wolfram = mathMode ? await askWolframAlpha(latestMessage) : { text: "", sources: [] };
+  const youtube = youtubeMode ? await getYouTubeTranscript(input) : { text: "", transcriptFound: false, videoId: "" };
+
+  const finalInput = `
+${input}
+
+${web.text ? web.text : ""}
+
+${wolfram.text ? wolfram.text : ""}
+
+${youtube.text ? `YOUTUBE TRANSCRIPT:\n${youtube.text}` : ""}
+`;
+
+  const prompt = buildPrompt(
+    youtubeMode ? "youtube" : mode,
+    finalInput,
+    isPro,
+    pageType,
+    wolfram.text,
+    youtube.text
+  );
+
+  return {
+    isPro,
+    pageType,
+    mathMode,
+    youtubeMode,
+    prompt,
+    web,
+    wolfram,
+    youtube
+  };
+}
+
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "1.7-smart-browser-ai"
+    version: "1.8-premium-ui-streaming"
   });
 });
 
@@ -633,6 +660,79 @@ app.post("/check-pro", (req, res) => {
   res.json({ pro: isProUser(deviceId) });
 });
 
+app.post("/ask-stream", async (req, res) => {
+  try {
+    const { input, mode = "chat", deviceId } = req.body || {};
+
+    if (!input || typeof input !== "string") {
+      res.status(400).json({ error: "Missing input" });
+      return;
+    }
+
+    const data = await preparePromptData(input, mode, deviceId);
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    const stream = await openai.chat.completions.create({
+      model: data.isPro ? "gpt-4o" : "gpt-4o-mini",
+      temperature: data.mathMode ? 0.1 : 0.2,
+      max_tokens: getMaxTokens(data.youtubeMode ? "youtube" : data.mathMode ? "math" : mode, data.isPro),
+      stream: true,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. Give clean, structured answers. For Smart Browser AI, understand pages, selected text, websites, search pages, school assignments and math automatically."
+        },
+        {
+          role: "user",
+          content: data.prompt
+        }
+      ]
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content || "";
+      if (delta) {
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    res.write(`data: ${JSON.stringify({
+      done: true,
+      pro: data.isPro,
+      pageType: data.pageType,
+      mathMode: data.mathMode,
+      usedSearch: Boolean(data.web.text),
+      usedWolfram: Boolean(data.wolfram.text),
+      usedYoutubeTranscript: Boolean(data.youtube.text),
+      youtubeVideoId: data.youtube.videoId || null,
+      sources: [
+        ...data.web.sources.map(source => ({
+          title: source.title,
+          url: source.url
+        })),
+        ...data.wolfram.sources,
+        ...(data.youtube.text
+          ? [{
+              title: "YouTube transcript",
+              url: data.youtube.videoId ? `https://www.youtube.com/watch?v=${data.youtube.videoId}` : ""
+            }]
+          : [])
+      ]
+    })}\n\n`);
+
+    res.end();
+  } catch (error) {
+    console.error("Stream error:", error);
+    res.write(`data: ${JSON.stringify({ error: "Streaming failed" })}\n\n`);
+    res.end();
+  }
+});
+
 app.post("/ask-image", upload.single("image"), async (req, res) => {
   try {
     const { deviceId, tool = "image", question = "" } = req.body || {};
@@ -648,11 +748,7 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
     const mimeType = req.file.mimetype || "image/png";
     const base64 = req.file.buffer.toString("base64");
 
-    const prompt = buildImagePrompt({
-      tool,
-      question,
-      isPro
-    });
+    const prompt = buildImagePrompt({ tool, question, isPro });
 
     const completion = await openai.chat.completions.create({
       model: isPro ? "gpt-4o" : "gpt-4o-mini",
@@ -667,10 +763,7 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: prompt
-            },
+            { type: "text", text: prompt },
             {
               type: "image_url",
               image_url: {
@@ -744,10 +837,7 @@ app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
           content:
             "You are Instant Answer PDF Assistant. Read PDF text carefully. Never invent page numbers or quotes."
         },
-        {
-          role: "user",
-          content: prompt
-        }
+        { role: "user", content: prompt }
       ]
     });
 
@@ -784,51 +874,19 @@ app.post("/ask", async (req, res) => {
       });
     }
 
-    const isPro = isProUser(deviceId);
-    const pageType = detectPageType(input);
-    const latestMessage = extractLatestUserMessage(input);
-
-    const mathMode = isMathRequest(input, mode);
-    const youtubeMode = mode === "youtube" || pageType === "youtube";
-    const useSearch = shouldUseWebSearch(input, mode);
-
-    const web = useSearch ? await searchWeb(latestMessage, isPro) : { text: "", sources: [] };
-    const wolfram = mathMode ? await askWolframAlpha(latestMessage) : { text: "", sources: [] };
-    const youtube = youtubeMode ? await getYouTubeTranscript(input) : { text: "", transcriptFound: false, videoId: "" };
-
-    const finalInput = `
-${input}
-
-${web.text ? web.text : ""}
-
-${wolfram.text ? wolfram.text : ""}
-
-${youtube.text ? `YOUTUBE TRANSCRIPT:\n${youtube.text}` : ""}
-`;
-
-    const prompt = buildPrompt(
-      youtubeMode ? "youtube" : mode,
-      finalInput,
-      isPro,
-      pageType,
-      wolfram.text,
-      youtube.text
-    );
+    const data = await preparePromptData(input, mode, deviceId);
 
     const completion = await openai.chat.completions.create({
-      model: isPro ? "gpt-4o" : "gpt-4o-mini",
-      temperature: mathMode ? 0.1 : 0.2,
-      max_tokens: getMaxTokens(youtubeMode ? "youtube" : mathMode ? "math" : mode, isPro),
+      model: data.isPro ? "gpt-4o" : "gpt-4o-mini",
+      temperature: data.mathMode ? 0.1 : 0.2,
+      max_tokens: getMaxTokens(data.youtubeMode ? "youtube" : data.mathMode ? "math" : mode, data.isPro),
       messages: [
         {
           role: "system",
           content:
             "You are Instant Answer, a fast premium AI assistant inside a Chrome extension. For Smart Browser AI, understand pages, selected text, websites, search pages, school assignments and math automatically."
         },
-        {
-          role: "user",
-          content: prompt
-        }
+        { role: "user", content: data.prompt }
       ]
     });
 
@@ -838,26 +896,24 @@ ${youtube.text ? `YOUTUBE TRANSCRIPT:\n${youtube.text}` : ""}
 
     res.json({
       answer,
-      pro: isPro,
-      usedSearch: Boolean(web.text),
-      usedWolfram: Boolean(wolfram.text),
-      usedYoutubeTranscript: Boolean(youtube.text),
-      youtubeVideoId: youtube.videoId || null,
-      mathMode,
-      pageType,
+      pro: data.isPro,
+      usedSearch: Boolean(data.web.text),
+      usedWolfram: Boolean(data.wolfram.text),
+      usedYoutubeTranscript: Boolean(data.youtube.text),
+      youtubeVideoId: data.youtube.videoId || null,
+      mathMode: data.mathMode,
+      pageType: data.pageType,
       sources: [
-        ...web.sources.map(source => ({
+        ...data.web.sources.map(source => ({
           title: source.title,
           url: source.url
         })),
-        ...wolfram.sources,
-        ...(youtube.text
-          ? [
-              {
-                title: "YouTube transcript",
-                url: youtube.videoId ? `https://www.youtube.com/watch?v=${youtube.videoId}` : ""
-              }
-            ]
+        ...data.wolfram.sources,
+        ...(data.youtube.text
+          ? [{
+              title: "YouTube transcript",
+              url: data.youtube.videoId ? `https://www.youtube.com/watch?v=${data.youtube.videoId}` : ""
+            }]
           : [])
       ]
     });

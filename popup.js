@@ -1,5 +1,6 @@
 const BACKEND_URL = "https://instant-answer-backend-clean.onrender.com";
 const ASK_URL = `${BACKEND_URL}/ask`;
+const ASK_STREAM_URL = `${BACKEND_URL}/ask-stream`;
 const CHECK_PRO_URL = `${BACKEND_URL}/check-pro`;
 const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
 
@@ -20,7 +21,6 @@ let activeYoutubeTool = "summary";
 
 let uploadedPdfFile = null;
 let uploadedPdfName = "";
-
 let uploadedImageFile = null;
 let uploadedImageName = "";
 
@@ -46,6 +46,13 @@ function cleanText(text = "", limit = 14000) {
 function formatAnswer(text = "") {
   let safe = escapeHTML(text);
 
+  safe = safe.replace(/```([\s\S]*?)```/g, (_, code) => {
+    return `<pre class="code-block"><code>${escapeHTML(code.trim())}</code></pre>`;
+  });
+
+  safe = safe.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+  safe = safe.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+  safe = safe.replace(/^# (.*$)/gim, "<h1>$1</h1>");
   safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
   safe = safe.replace(/\\\[(.*?)\\\]/gs, (_, formula) => {
@@ -55,6 +62,8 @@ function formatAnswer(text = "") {
   safe = safe.replace(/\\\((.*?)\\\)/gs, (_, formula) => {
     return `<span class="math-inline">${escapeHTML(formula)}</span>`;
   });
+
+  safe = safe.replace(/^- (.*$)/gim, "• $1");
 
   return safe.replace(/\n/g, "<br>");
 }
@@ -117,8 +126,56 @@ function languageInstruction() {
   return userLanguage.startsWith("da") ? "Answer in Danish." : "Answer in English.";
 }
 
-function showLoading(text = "AI tænker...") {
-  $("result").innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
+function showLoading(text = "AI tænker") {
+  $("result").innerHTML = `
+    <div class="loading">
+      <div>
+        <div>${escapeHTML(text)}</div>
+        <div class="typing-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function typeTextIntoElement(element, html, speed = 5) {
+  if (!element) return;
+
+  element.innerHTML = "";
+  let i = 0;
+  const step = 5;
+
+  function tick() {
+    element.innerHTML = html.slice(0, i);
+    i += step;
+
+    if ($("result")) {
+      $("result").scrollTop = $("result").scrollHeight;
+    }
+
+    if (i <= html.length) {
+      setTimeout(tick, speed);
+    } else {
+      element.innerHTML = html;
+    }
+  }
+
+  tick();
+}
+
+function createAnswerBox(label, title) {
+  $("result").innerHTML = `
+    <div class="answer-box">
+      <div class="answer-label">${escapeHTML(label)}</div>
+      <div class="answer-title">${escapeHTML(title)}</div>
+      <div id="streamAnswer" class="answer-content"></div>
+    </div>
+  `;
+
+  return $("streamAnswer");
 }
 
 function showAnswer(label, title, answer, sources = []) {
@@ -143,10 +200,12 @@ function showAnswer(label, title, answer, sources = []) {
     <div class="answer-box">
       <div class="answer-label">${escapeHTML(label)}</div>
       <div class="answer-title">${escapeHTML(title)}</div>
-      <div class="answer-content">${formatAnswer(answer)}</div>
+      <div id="streamAnswer" class="answer-content"></div>
       ${sourceHTML}
     </div>
   `;
+
+  typeTextIntoElement($("streamAnswer"), formatAnswer(answer));
 }
 
 function saveHistory(mode, question, answer) {
@@ -179,20 +238,83 @@ async function checkProStatus() {
   }
 }
 
+function showLimitBox() {
+  $("result").innerHTML = `
+    <div class="pro-box">
+      <div class="pro-title">Upgrade to Pro</div>
+      <div>You have used your free answers today.</div>
+      <button id="upgradeBtn" class="upgrade-btn">Upgrade to Pro</button>
+    </div>
+  `;
+
+  $("upgradeBtn").onclick = () => {
+    window.open(`${PRO_LINK}?client_reference_id=${getDeviceId()}`, "_blank");
+  };
+}
+
+function parseStreamChunk(chunk = "") {
+  return chunk
+    .split("\n")
+    .map(line => line.replace(/^data:\s?/, ""))
+    .filter(line => line && line !== "[DONE]")
+    .join("");
+}
+
+async function askBackendStream(input, mode, onUpdate) {
+  if (hasReachedLimit()) {
+    showLimitBox();
+    return null;
+  }
+
+  const response = await fetch(ASK_STREAM_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      input,
+      mode,
+      deviceId: getDeviceId()
+    })
+  });
+
+  if (!response.ok || !response.body) {
+    return await askBackend(input, mode);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  let answer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const cleanChunk = parseStreamChunk(chunk);
+
+    if (cleanChunk) {
+      answer += cleanChunk;
+      if (onUpdate) onUpdate(answer);
+    }
+  }
+
+  if (!answer.trim()) {
+    throw new Error("Could not stream AI answer.");
+  }
+
+  increaseUsage();
+  updateProStatus();
+
+  return {
+    answer,
+    sources: [],
+    pro: isProUser()
+  };
+}
+
 async function askBackend(input, mode) {
   if (hasReachedLimit()) {
-    $("result").innerHTML = `
-      <div class="pro-box">
-        <div class="pro-title">Upgrade to Pro</div>
-        <div>You have used your free answers today.</div>
-        <button id="upgradeBtn" class="upgrade-btn">Upgrade to Pro</button>
-      </div>
-    `;
-
-    $("upgradeBtn").onclick = () => {
-      window.open(`${PRO_LINK}?client_reference_id=${getDeviceId()}`, "_blank");
-    };
-
+    showLimitBox();
     return null;
   }
 
@@ -303,9 +425,12 @@ function renderChatMessages() {
 
   $("result").innerHTML = chatMessages.map(msg => `
     <div class="msg ${msg.role === "user" ? "user-msg" : "ai-msg"}">
-      ${formatAnswer(msg.content)}
+      <div class="msg-role">${msg.role === "user" ? "You" : "Instant Answer"}</div>
+      <div>${formatAnswer(msg.content)}</div>
     </div>
   `).join("");
+
+  $("result").scrollTop = $("result").scrollHeight;
 }
 
 function setSmartTool(tool) {
@@ -750,6 +875,16 @@ ${cleanText(currentPageText, 14000)}
 `;
 }
 
+function getResultTitle() {
+  if (activeMode === "math") return `${activeMathTool} result`;
+  if (activeMode === "study") return "Study Help";
+  if (activeMode === "analyze") return "Page Analysis";
+  if (activeMode === "pdf") return `${activePdfTool} result`;
+  if (activeMode === "youtube") return `${activeYoutubeTool} result`;
+  if (activeMode === "smart") return `${activeSmartTool} result`;
+  return "AI Answer";
+}
+
 async function runMainAction() {
   if (isGenerating) return;
 
@@ -775,22 +910,18 @@ async function runMainAction() {
 
   isGenerating = true;
 
-  const loadingText =
-    activeMode === "pdf" ? "Analyzing PDF..." :
-    activeMode === "youtube" ? "Reading YouTube video..." :
-    activeMode === "smart" ? "Smart AI analyzing..." :
-    "AI tænker...";
-
-  showLoading(loadingText);
-
   try {
     let data = null;
 
     if (activeMode === "pdf") {
+      showLoading("Analyzing PDF");
       data = await askPdfBackend(userMessage);
     } else if (activeMode === "smart") {
+      showLoading("Smart AI analyzing");
       data = await runSmartAction(userMessage);
     } else if (activeMode === "youtube") {
+      showLoading("Reading YouTube video");
+
       const loaded = await loadPageInfo(true);
 
       if (!loaded || currentPageType !== "youtube") {
@@ -798,8 +929,14 @@ async function runMainAction() {
         return;
       }
 
-      data = await askBackend(buildYoutubePrompt(userMessage), "youtube");
+      const target = createAnswerBox("YOUTUBE", getResultTitle());
+      data = await askBackendStream(buildYoutubePrompt(userMessage), "youtube", answer => {
+        target.innerHTML = formatAnswer(answer);
+        $("result").scrollTop = $("result").scrollHeight;
+      });
     } else if (activeMode === "analyze") {
+      showLoading("Analyzing page");
+
       const loaded = await loadPageInfo(false);
 
       if (!loaded) {
@@ -807,29 +944,44 @@ async function runMainAction() {
         return;
       }
 
-      data = await askBackend(buildAnalyzePrompt(userMessage), "analyze");
+      const target = createAnswerBox("ANALYZE", getResultTitle());
+      data = await askBackendStream(buildAnalyzePrompt(userMessage), "analyze", answer => {
+        target.innerHTML = formatAnswer(answer);
+        $("result").scrollTop = $("result").scrollHeight;
+      });
     } else {
-      data = await askBackend(buildDirectPrompt(userMessage), activeMode);
+      if (activeMode === "chat") {
+        chatMessages.push({ role: "user", content: userMessage });
+        chatMessages.push({ role: "assistant", content: "" });
+        localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-30)));
+        renderChatMessages();
+
+        data = await askBackendStream(buildDirectPrompt(userMessage), activeMode, answer => {
+          chatMessages[chatMessages.length - 1].content = answer;
+          localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-30)));
+          renderChatMessages();
+        });
+      } else {
+        showLoading("AI tænker");
+
+        const target = createAnswerBox(activeMode.toUpperCase(), getResultTitle());
+        data = await askBackendStream(buildDirectPrompt(userMessage), activeMode, answer => {
+          target.innerHTML = formatAnswer(answer);
+          $("result").scrollTop = $("result").scrollHeight;
+        });
+      }
     }
 
     if (!data) return;
 
+    if (activeMode !== "chat" && activeMode !== "analyze" && activeMode !== "youtube") {
+      showAnswer(activeMode.toUpperCase(), getResultTitle(), data.answer, data.sources || []);
+    }
+
     if (activeMode === "chat") {
-      chatMessages.push({ role: "user", content: userMessage });
-      chatMessages.push({ role: "assistant", content: data.answer });
+      chatMessages[chatMessages.length - 1].content = data.answer;
       localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-30)));
       renderChatMessages();
-    } else {
-      const title =
-        activeMode === "math" ? `${activeMathTool} result` :
-        activeMode === "study" ? "Study Help" :
-        activeMode === "analyze" ? "Page Analysis" :
-        activeMode === "pdf" ? `${activePdfTool} result` :
-        activeMode === "youtube" ? `${activeYoutubeTool} result` :
-        activeMode === "smart" ? `${activeSmartTool} result` :
-        "AI Answer";
-
-      showAnswer(activeMode.toUpperCase(), title, data.answer, data.sources || []);
     }
 
     saveHistory(activeMode, userMessage || uploadedPdfName || uploadedImageName || currentPageText, data.answer);
@@ -876,7 +1028,12 @@ async function runSmartAction(userMessage = "") {
     return null;
   }
 
-  return await askBackend(buildSmartPrompt(userMessage, extraText), "smart");
+  const target = createAnswerBox("SMART", getResultTitle());
+
+  return await askBackendStream(buildSmartPrompt(userMessage, extraText), "smart", answer => {
+    target.innerHTML = formatAnswer(answer);
+    $("result").scrollTop = $("result").scrollHeight;
+  });
 }
 
 async function analyzeCurrentPage() {
@@ -885,9 +1042,9 @@ async function analyzeCurrentPage() {
   isGenerating = true;
 
   const loadingText =
-    activeMode === "youtube" ? "Reading YouTube video..." :
-    activeMode === "smart" ? "Reading browser context..." :
-    "Analyzing page...";
+    activeMode === "youtube" ? "Reading YouTube video" :
+    activeMode === "smart" ? "Reading browser context" :
+    "Analyzing page";
 
   showLoading(loadingText);
 
@@ -899,35 +1056,29 @@ async function analyzeCurrentPage() {
       return;
     }
 
-    if (activeMode === "smart") {
-      const data = await askBackend(buildSmartPrompt($("mainInput").value.trim()), "smart");
-      if (!data) return;
-      showAnswer("SMART", `${activeSmartTool} result`, data.answer, data.sources || []);
-      saveHistory("smart", currentPageText, data.answer);
+    const label = activeMode === "youtube" ? "YOUTUBE" : activeMode === "smart" ? "SMART" : "ANALYZE";
+    const title = activeMode === "youtube" ? `${activeYoutubeTool} result` : activeMode === "smart" ? `${activeSmartTool} result` : "Page Analysis";
+    const prompt = activeMode === "youtube"
+      ? buildYoutubePrompt($("mainInput").value.trim())
+      : activeMode === "smart"
+        ? buildSmartPrompt($("mainInput").value.trim())
+        : buildAnalyzePrompt($("mainInput").value.trim());
+
+    if (activeMode === "youtube" && currentPageType !== "youtube") {
+      showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
       return;
     }
 
-    if (activeMode === "youtube") {
-      if (currentPageType !== "youtube") {
-        showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
-        return;
-      }
+    const target = createAnswerBox(label, title);
 
-      const data = await askBackend(buildYoutubePrompt($("mainInput").value.trim()), "youtube");
-
-      if (!data) return;
-
-      showAnswer("YOUTUBE", `${activeYoutubeTool} result`, data.answer, data.sources || []);
-      saveHistory("youtube", currentPageText, data.answer);
-      return;
-    }
-
-    const data = await askBackend(buildAnalyzePrompt($("mainInput").value.trim()), "analyze");
+    const data = await askBackendStream(prompt, activeMode === "smart" ? "smart" : activeMode === "youtube" ? "youtube" : "analyze", answer => {
+      target.innerHTML = formatAnswer(answer);
+      $("result").scrollTop = $("result").scrollHeight;
+    });
 
     if (!data) return;
 
-    showAnswer("ANALYZE", "Page Analysis", data.answer, data.sources || []);
-    saveHistory("analyze", currentPageText, data.answer);
+    saveHistory(activeMode, currentPageText, data.answer);
   } catch (error) {
     console.error(error);
     showAnswer("ERROR", "Something went wrong", error.message || "Could not analyze page.");
@@ -1121,7 +1272,6 @@ async function getPageInfo() {
     .join("\n");
 
   let detectedType = "webpage";
-
   const lower = bodyText.toLowerCase();
 
   if (url.includes("youtube.com/watch")) detectedType = "youtube";
