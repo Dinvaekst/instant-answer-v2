@@ -1,8 +1,10 @@
 const BACKEND_URL = "https://instant-answer-backend-clean.onrender.com";
 const ASK_URL = `${BACKEND_URL}/ask`;
-const ASK_STREAM_URL = `${BACKEND_URL}/ask-stream`;
 const CHECK_PRO_URL = `${BACKEND_URL}/check-pro`;
 const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
+
+const SUPABASE_URL = "https://aegnvyicwvgqveftryge.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlZ252eWljd3ZncXZlZnRyeWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTY5MzEsImV4cCI6MjA5NDMzMjkzMX0.YEdy7kzftyK3so29V6sgtj8xJDISdIdXRl5PfqRl464";
 
 const DAILY_LIMIT = 5;
 const userLanguage = navigator.language || "en";
@@ -18,6 +20,7 @@ let activeSmartTool = "context";
 let activeMathTool = "calculator";
 let activePdfTool = "summary";
 let activeYoutubeTool = "summary";
+let activeAccountPanel = "login";
 
 let uploadedPdfFile = null;
 let uploadedPdfName = "";
@@ -79,6 +82,33 @@ function getDeviceId() {
   return id;
 }
 
+function getAccessToken() {
+  return localStorage.getItem("ia_access_token") || "";
+}
+
+function getUserEmail() {
+  return localStorage.getItem("ia_user_email") || "";
+}
+
+function isLoggedIn() {
+  return Boolean(getAccessToken());
+}
+
+function getAuthHeaders(extra = {}) {
+  const token = getAccessToken();
+
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+}
+
+function updateAccountStatus() {
+  if (!$("accountStatus")) return;
+
+  $("accountStatus").textContent = isLoggedIn() ? "Account" : "Guest";
+}
+
 function isProUser() {
   return localStorage.getItem("instant_answer_pro") === "true";
 }
@@ -131,51 +161,10 @@ function showLoading(text = "AI tænker") {
     <div class="loading">
       <div>
         <div>${escapeHTML(text)}</div>
-        <div class="typing-dots">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
       </div>
     </div>
   `;
-}
-
-function typeTextIntoElement(element, html, speed = 5) {
-  if (!element) return;
-
-  element.innerHTML = "";
-  let i = 0;
-  const step = 5;
-
-  function tick() {
-    element.innerHTML = html.slice(0, i);
-    i += step;
-
-    if ($("result")) {
-      $("result").scrollTop = $("result").scrollHeight;
-    }
-
-    if (i <= html.length) {
-      setTimeout(tick, speed);
-    } else {
-      element.innerHTML = html;
-    }
-  }
-
-  tick();
-}
-
-function createAnswerBox(label, title) {
-  $("result").innerHTML = `
-    <div class="answer-box">
-      <div class="answer-label">${escapeHTML(label)}</div>
-      <div class="answer-title">${escapeHTML(title)}</div>
-      <div id="streamAnswer" class="answer-content"></div>
-    </div>
-  `;
-
-  return $("streamAnswer");
 }
 
 function showAnswer(label, title, answer, sources = []) {
@@ -200,12 +189,10 @@ function showAnswer(label, title, answer, sources = []) {
     <div class="answer-box">
       <div class="answer-label">${escapeHTML(label)}</div>
       <div class="answer-title">${escapeHTML(title)}</div>
-      <div id="streamAnswer" class="answer-content"></div>
+      <div class="answer-content">${formatAnswer(answer)}</div>
       ${sourceHTML}
     </div>
   `;
-
-  typeTextIntoElement($("streamAnswer"), formatAnswer(answer));
 }
 
 function saveHistory(mode, question, answer) {
@@ -238,6 +225,236 @@ async function checkProStatus() {
   }
 }
 
+async function signUpUser() {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value.trim();
+
+  if (!email || !password) {
+    showAnswer("ACCOUNT", "Missing info", "Write email and password first.");
+    return;
+  }
+
+  try {
+    showLoading("Creating account");
+
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.msg || data.error_description || "Could not create account.");
+    }
+
+    if (data.access_token) {
+      localStorage.setItem("ia_access_token", data.access_token);
+      localStorage.setItem("ia_refresh_token", data.refresh_token || "");
+      localStorage.setItem("ia_user_email", data.user?.email || email);
+    }
+
+    updateAccountStatus();
+
+    showAnswer(
+      "ACCOUNT",
+      "Account created",
+      data.access_token
+        ? "Your account is created and you are logged in."
+        : "Your account is created. Check your email if Supabase asks for confirmation."
+    );
+  } catch (error) {
+    showAnswer("ACCOUNT", "Signup failed", error.message);
+  }
+}
+
+async function loginUser() {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value.trim();
+
+  if (!email || !password) {
+    showAnswer("ACCOUNT", "Missing info", "Write email and password first.");
+    return;
+  }
+
+  try {
+    showLoading("Logging in");
+
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.access_token) {
+      throw new Error(data.error_description || data.msg || "Could not login.");
+    }
+
+    localStorage.setItem("ia_access_token", data.access_token);
+    localStorage.setItem("ia_refresh_token", data.refresh_token || "");
+    localStorage.setItem("ia_user_email", data.user?.email || email);
+
+    updateAccountStatus();
+    await autoLoadAccount();
+
+    showAnswer("ACCOUNT", "Logged in", `Logged in as ${data.user?.email || email}.`);
+  } catch (error) {
+    showAnswer("ACCOUNT", "Login failed", error.message);
+  }
+}
+
+function logoutUser() {
+  localStorage.removeItem("ia_access_token");
+  localStorage.removeItem("ia_refresh_token");
+  localStorage.removeItem("ia_user_email");
+
+  updateAccountStatus();
+  showAnswer("ACCOUNT", "Logged out", "You are now logged out.");
+}
+
+async function loadMemoryPanel() {
+  if (!isLoggedIn()) {
+    showAnswer("MEMORY", "Login required", "Login first to use cloud memory.");
+    return;
+  }
+
+  try {
+    showLoading("Loading memory");
+
+    const response = await fetch(`${BACKEND_URL}/memory`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || "Could not load memory.");
+
+    const memories = data.memories || [];
+
+    $("result").innerHTML = `
+      <div class="answer-box">
+        <div class="answer-label">MEMORY</div>
+        <div class="answer-title">Saved memory</div>
+        ${
+          memories.length
+            ? memories.map(item => `<div class="memory-item">${escapeHTML(item.content)}</div>`).join("")
+            : `<div class="memory-item">No memory saved yet. Write “husk at ...” in chat to save memory.</div>`
+        }
+      </div>
+    `;
+  } catch (error) {
+    showAnswer("MEMORY", "Memory error", error.message);
+  }
+}
+
+async function loadChatsPanel() {
+  if (!isLoggedIn()) {
+    showAnswer("CHATS", "Login required", "Login first to sync saved chats.");
+    return;
+  }
+
+  try {
+    showLoading("Loading chats");
+
+    const response = await fetch(`${BACKEND_URL}/chats`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || "Could not load chats.");
+
+    const chats = data.chats || [];
+
+    $("result").innerHTML = `
+      <div class="answer-box">
+        <div class="answer-label">CHATS</div>
+        <div class="answer-title">Saved chats</div>
+        ${
+          chats.length
+            ? chats.map(chat => `
+              <div class="chat-item">
+                <strong>${escapeHTML(chat.title || "Saved chat")}</strong><br>
+                ${escapeHTML(chat.mode || "chat")} · ${escapeHTML(new Date(chat.created_at).toLocaleString())}
+              </div>
+            `).join("")
+            : `<div class="chat-item">No cloud chats saved yet.</div>`
+        }
+      </div>
+    `;
+  } catch (error) {
+    showAnswer("CHATS", "Chats error", error.message);
+  }
+}
+
+function setAccountPanel(panel) {
+  activeAccountPanel = panel;
+
+  setActiveToolButtons({
+    login: $("loginPanelBtn"),
+    memory: $("memoryPanelBtn"),
+    chats: $("chatsPanelBtn")
+  }, panel);
+
+  if (panel === "login") {
+    $("accountBox").style.display = "block";
+    showAnswer(
+      "ACCOUNT",
+      isLoggedIn() ? "Account active" : "Login",
+      isLoggedIn()
+        ? `Logged in as ${getUserEmail()}. Your memory and chats can now sync.`
+        : "Login or create an account to sync memory and chats across devices."
+    );
+  }
+
+  if (panel === "memory") {
+    $("accountBox").style.display = "none";
+    loadMemoryPanel();
+  }
+
+  if (panel === "chats") {
+    $("accountBox").style.display = "none";
+    loadChatsPanel();
+  }
+}
+
+function hideAccountUI() {
+  if ($("accountTools")) $("accountTools").style.display = "none";
+  if ($("accountBox")) $("accountBox").style.display = "none";
+}
+
+function showAccountPanel() {
+  activeMode = "account";
+
+  if ($("smartTools")) $("smartTools").style.display = "none";
+  if ($("mathTools")) $("mathTools").style.display = "none";
+  if ($("pdfTools")) $("pdfTools").style.display = "none";
+  if ($("youtubeTools")) $("youtubeTools").style.display = "none";
+  if ($("pdfUploadBox")) $("pdfUploadBox").style.display = "none";
+  if ($("imageUploadBox")) $("imageUploadBox").style.display = "none";
+  if ($("pageActionBtn")) $("pageActionBtn").style.display = "none";
+
+  if ($("accountTools")) $("accountTools").style.display = "grid";
+  if ($("mainInput")) $("mainInput").style.display = "none";
+  if ($("mainActionBtn")) $("mainActionBtn").style.display = "none";
+
+  $("panelTitle").textContent = "Account";
+  $("panelSubtitle").textContent = "Login, memory, saved chats and cross-device sync.";
+
+  setAccountPanel(activeAccountPanel);
+}
+
 function showLimitBox() {
   $("result").innerHTML = `
     <div class="pro-box">
@@ -252,66 +469,6 @@ function showLimitBox() {
   };
 }
 
-function parseStreamChunk(chunk = "") {
-  return chunk
-    .split("\n")
-    .map(line => line.replace(/^data:\s?/, ""))
-    .filter(line => line && line !== "[DONE]")
-    .join("");
-}
-
-async function askBackendStream(input, mode, onUpdate) {
-  if (hasReachedLimit()) {
-    showLimitBox();
-    return null;
-  }
-
-  const response = await fetch(ASK_STREAM_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      input,
-      mode,
-      deviceId: getDeviceId()
-    })
-  });
-
-  if (!response.ok || !response.body) {
-    return await askBackend(input, mode);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  let answer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value, { stream: true });
-    const cleanChunk = parseStreamChunk(chunk);
-
-    if (cleanChunk) {
-      answer += cleanChunk;
-      if (onUpdate) onUpdate(answer);
-    }
-  }
-
-  if (!answer.trim()) {
-    throw new Error("Could not stream AI answer.");
-  }
-
-  increaseUsage();
-  updateProStatus();
-
-  return {
-    answer,
-    sources: [],
-    pro: isProUser()
-  };
-}
-
 async function askBackend(input, mode) {
   if (hasReachedLimit()) {
     showLimitBox();
@@ -320,7 +477,9 @@ async function askBackend(input, mode) {
 
   const response = await fetch(ASK_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders({
+      "Content-Type": "application/json"
+    }),
     body: JSON.stringify({
       input,
       mode,
@@ -362,6 +521,7 @@ async function askPdfBackend(question = "") {
 
   const response = await fetch(`${BACKEND_URL}/ask-pdf`, {
     method: "POST",
+    headers: getAuthHeaders(),
     body: formData
   });
 
@@ -399,6 +559,7 @@ async function askImageBackend(question = "", imageFile = uploadedImageFile) {
 
   const response = await fetch(`${BACKEND_URL}/ask-image`, {
     method: "POST",
+    headers: getAuthHeaders(),
     body: formData
   });
 
@@ -433,21 +594,23 @@ function renderChatMessages() {
   $("result").scrollTop = $("result").scrollHeight;
 }
 
+function setActiveToolButtons(buttons, activeKey) {
+  Object.keys(buttons).forEach(key => {
+    if (buttons[key]) buttons[key].classList.toggle("active", key === activeKey);
+  });
+}
+
 function setSmartTool(tool) {
   activeSmartTool = tool;
 
-  const buttons = {
+  setActiveToolButtons({
     context: $("smartContextBtn"),
     selected: $("selectedTextBtn"),
     screenshot: $("screenshotBtn"),
     image: $("imageUploadBtn"),
     auto: $("autoDetectBtn"),
     classify: $("classifyPageBtn")
-  };
-
-  Object.keys(buttons).forEach(key => {
-    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
-  });
+  }, tool);
 
   const data = {
     context: ["Spørg om hele siden...", "Use smart context", "Smart context klar"],
@@ -461,9 +624,7 @@ function setSmartTool(tool) {
   $("mainInput").placeholder = data[tool][0];
   $("mainActionBtn").textContent = data[tool][1];
 
-  if ($("imageUploadBox")) {
-    $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
-  }
+  if ($("imageUploadBox")) $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
 
   $("result").innerHTML = `<div class="loading">${escapeHTML(data[tool][2])}</div>`;
 }
@@ -471,18 +632,14 @@ function setSmartTool(tool) {
 function setMathTool(tool) {
   activeMathTool = tool;
 
-  const buttons = {
+  setActiveToolButtons({
     calculator: $("calcToolBtn"),
     equation: $("equationToolBtn"),
     percent: $("percentToolBtn"),
     graph: $("graphToolBtn"),
     formula: $("formulaToolBtn"),
     word: $("wordToolBtn")
-  };
-
-  Object.keys(buttons).forEach(key => {
-    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
-  });
+  }, tool);
 
   const data = {
     calculator: ["Skriv fx: 25*4+10", "Calculate", "Calculator klar"],
@@ -501,18 +658,14 @@ function setMathTool(tool) {
 function setPdfTool(tool) {
   activePdfTool = tool;
 
-  const buttons = {
+  setActiveToolButtons({
     summary: $("pdfSummaryBtn"),
     notes: $("pdfNotesBtn"),
     flashcards: $("pdfFlashcardsBtn"),
     quiz: $("pdfQuizBtn"),
     citations: $("pdfCitationsBtn"),
     important: $("pdfImportantBtn")
-  };
-
-  Object.keys(buttons).forEach(key => {
-    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
-  });
+  }, tool);
 
   const data = {
     summary: ["Spørg fx: Lav et kort resume", "Summarize PDF", "PDF summary klar"],
@@ -536,18 +689,14 @@ function setPdfTool(tool) {
 function setYoutubeTool(tool) {
   activeYoutubeTool = tool;
 
-  const buttons = {
+  setActiveToolButtons({
     summary: $("ytSummaryBtn"),
     notes: $("ytNotesBtn"),
     moments: $("ytMomentsBtn"),
     quiz: $("ytQuizBtn"),
     chapters: $("ytChaptersBtn"),
     comments: $("ytCommentsBtn")
-  };
-
-  Object.keys(buttons).forEach(key => {
-    if (buttons[key]) buttons[key].classList.toggle("active", key === tool);
-  });
+  }, tool);
 
   const data = {
     summary: ["Spørg fx: Lav et kort resume af videoen", "Summarize video", "YouTube summary klar"],
@@ -565,8 +714,9 @@ function setYoutubeTool(tool) {
 
 function setActiveMode(mode) {
   activeMode = mode;
+  hideAccountUI();
 
-  const tabs = {
+  setActiveToolButtons({
     chat: $("chatModeBtn"),
     smart: $("smartModeBtn"),
     math: $("mathModeBtn"),
@@ -574,11 +724,7 @@ function setActiveMode(mode) {
     analyze: $("analyzeModeBtn"),
     pdf: $("pdfModeBtn"),
     youtube: $("youtubeModeBtn")
-  };
-
-  Object.keys(tabs).forEach(key => {
-    if (tabs[key]) tabs[key].classList.toggle("active", key === mode);
-  });
+  }, mode);
 
   if ($("smartTools")) $("smartTools").style.display = "none";
   if ($("mathTools")) $("mathTools").style.display = "none";
@@ -652,15 +798,6 @@ function setActiveMode(mode) {
 }
 
 function buildMathPrompt(userMessage) {
-  const rules = {
-    calculator: "Calculate accurately. Show calculation and final result.",
-    equation: "Solve the equation step by step. Isolate the unknown and check the answer.",
-    percent: "Identify percentage type. Show formula, calculation and final answer.",
-    graph: "Explain the function, slope/intersections/shape. If useful include GRAPH: y = expression.",
-    formula: "Explain the formula, variables, when to use it and give an example.",
-    word: "Solve using: 1. Given 2. Find 3. Formula 4. Calculation 5. Final answer."
-  };
-
   return `
 You are Instant Answer Math.
 
@@ -670,24 +807,12 @@ ${languageInstruction()}
 Math tool:
 ${activeMathTool}
 
-Rules:
-${rules[activeMathTool]}
-
 User input:
 ${userMessage}
 `;
 }
 
 function buildSmartPrompt(userMessage = "", extraText = "") {
-  const rules = {
-    context: "Use the full page context. Explain what matters and answer the user clearly.",
-    selected: "Use selected text only. Explain it, summarize it or answer the user's question about it.",
-    screenshot: "Analyze the screenshot/OCR content. Identify text, layout, questions, math or school tasks.",
-    image: "Analyze the uploaded image. Extract useful details and answer the user's question.",
-    auto: "Auto-detect if this is math, school assignment, article, search, website, or general question.",
-    classify: "Classify the website/page type, purpose, quality, important content and what the user can do next."
-  };
-
   return `
 You are Instant Answer Smart Browser AI.
 
@@ -696,9 +821,6 @@ ${languageInstruction()}
 
 Smart tool:
 ${activeSmartTool}
-
-Rules:
-${rules[activeSmartTool]}
 
 User question:
 ${userMessage || "Analyze this browser context."}
@@ -714,28 +836,10 @@ ${currentPageLabel}
 
 Current page content:
 ${cleanText(currentPageText, 16000)}
-
-Important:
-- Auto detect school assignments.
-- Auto detect math.
-- Auto detect article type.
-- Improve page understanding.
-- Improve website classification.
-- Improve search understanding.
-- Be clear and practical.
 `;
 }
 
 function buildYoutubePrompt(userMessage = "") {
-  const rules = {
-    summary: "Give a clear video summary with main idea, sections and takeaway.",
-    notes: "Create study notes with headings, bullet points and simple explanations.",
-    moments: "Find key moments. Use timestamps only if visible. If not, group by topic.",
-    quiz: "Create a quiz from the video and include answers at the end.",
-    chapters: "Detect chapters from timestamps or topic changes. If no timestamps exist, create suggested chapters.",
-    comments: "Analyze visible comments and separate comment opinions from video content."
-  };
-
   return `
 You are Instant Answer YouTube Study Assistant.
 
@@ -745,20 +849,11 @@ ${languageInstruction()}
 YouTube tool:
 ${activeYoutubeTool}
 
-Rules:
-${rules[activeYoutubeTool]}
-
 User question:
 ${userMessage || "Analyze this YouTube video."}
 
 Video/page content:
 ${cleanText(currentPageText, 16000)}
-
-Important:
-- Use transcript if available.
-- Use title, description, chapters, timestamps and comments if visible.
-- Do not invent timestamps.
-- If transcript is not available, say analysis is based on visible title, description and comments.
 `;
 }
 
@@ -773,11 +868,6 @@ ${languageInstruction()}
 
 Mode:
 ${activeMode}
-
-Rules:
-- Answer clearly and directly.
-- If study mode, explain simply with notes and examples.
-- If school work, give useful wording.
 
 User message:
 ${userMessage}
@@ -826,7 +916,6 @@ async function loadPageInfo(force = false) {
 async function getSelectedTextFromPage() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
     if (!tab?.id) return "";
 
     const results = await chrome.scripting.executeScript({
@@ -835,8 +924,7 @@ async function getSelectedTextFromPage() {
     });
 
     return results?.[0]?.result || "";
-  } catch (error) {
-    console.error("Selected text error:", error);
+  } catch {
     return "";
   }
 }
@@ -846,10 +934,8 @@ async function captureScreenshotAsFile() {
     const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
     const response = await fetch(dataUrl);
     const blob = await response.blob();
-
     return new File([blob], "screenshot.png", { type: "image/png" });
-  } catch (error) {
-    console.error("Screenshot error:", error);
+  } catch {
     return null;
   }
 }
@@ -883,115 +969,6 @@ function getResultTitle() {
   if (activeMode === "youtube") return `${activeYoutubeTool} result`;
   if (activeMode === "smart") return `${activeSmartTool} result`;
   return "AI Answer";
-}
-
-async function runMainAction() {
-  if (isGenerating) return;
-
-  const userMessage = $("mainInput").value.trim();
-
-  if (
-    activeMode !== "analyze" &&
-    activeMode !== "pdf" &&
-    activeMode !== "youtube" &&
-    activeMode !== "smart" &&
-    !userMessage
-  ) return;
-
-  if (activeMode === "pdf" && !uploadedPdfFile) {
-    showAnswer("PDF", "Upload PDF first", "Upload a PDF file before using PDF mode.");
-    return;
-  }
-
-  if (activeMode === "smart" && activeSmartTool === "image" && !uploadedImageFile) {
-    showAnswer("IMAGE", "Upload image first", "Upload an image before using Image mode.");
-    return;
-  }
-
-  isGenerating = true;
-
-  try {
-    let data = null;
-
-    if (activeMode === "pdf") {
-      showLoading("Analyzing PDF");
-      data = await askPdfBackend(userMessage);
-    } else if (activeMode === "smart") {
-      showLoading("Smart AI analyzing");
-      data = await runSmartAction(userMessage);
-    } else if (activeMode === "youtube") {
-      showLoading("Reading YouTube video");
-
-      const loaded = await loadPageInfo(true);
-
-      if (!loaded || currentPageType !== "youtube") {
-        showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
-        return;
-      }
-
-      const target = createAnswerBox("YOUTUBE", getResultTitle());
-      data = await askBackendStream(buildYoutubePrompt(userMessage), "youtube", answer => {
-        target.innerHTML = formatAnswer(answer);
-        $("result").scrollTop = $("result").scrollHeight;
-      });
-    } else if (activeMode === "analyze") {
-      showLoading("Analyzing page");
-
-      const loaded = await loadPageInfo(false);
-
-      if (!loaded) {
-        showAnswer("PAGE", "Could not read page", "Open YouTube, Google, Reddit or a normal webpage and try again.");
-        return;
-      }
-
-      const target = createAnswerBox("ANALYZE", getResultTitle());
-      data = await askBackendStream(buildAnalyzePrompt(userMessage), "analyze", answer => {
-        target.innerHTML = formatAnswer(answer);
-        $("result").scrollTop = $("result").scrollHeight;
-      });
-    } else {
-      if (activeMode === "chat") {
-        chatMessages.push({ role: "user", content: userMessage });
-        chatMessages.push({ role: "assistant", content: "" });
-        localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-30)));
-        renderChatMessages();
-
-        data = await askBackendStream(buildDirectPrompt(userMessage), activeMode, answer => {
-          chatMessages[chatMessages.length - 1].content = answer;
-          localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-30)));
-          renderChatMessages();
-        });
-      } else {
-        showLoading("AI tænker");
-
-        const target = createAnswerBox(activeMode.toUpperCase(), getResultTitle());
-        data = await askBackendStream(buildDirectPrompt(userMessage), activeMode, answer => {
-          target.innerHTML = formatAnswer(answer);
-          $("result").scrollTop = $("result").scrollHeight;
-        });
-      }
-    }
-
-    if (!data) return;
-
-    if (activeMode !== "chat" && activeMode !== "analyze" && activeMode !== "youtube") {
-      showAnswer(activeMode.toUpperCase(), getResultTitle(), data.answer, data.sources || []);
-    }
-
-    if (activeMode === "chat") {
-      chatMessages[chatMessages.length - 1].content = data.answer;
-      localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-30)));
-      renderChatMessages();
-    }
-
-    saveHistory(activeMode, userMessage || uploadedPdfName || uploadedImageName || currentPageText, data.answer);
-    $("mainInput").value = "";
-  } catch (error) {
-    console.error(error);
-    showAnswer("ERROR", "Something went wrong", error.message || "Could not connect to backend.");
-  } finally {
-    isGenerating = false;
-  }
 }
 
 async function runSmartAction(userMessage = "") {
@@ -1028,25 +1005,90 @@ async function runSmartAction(userMessage = "") {
     return null;
   }
 
-  const target = createAnswerBox("SMART", getResultTitle());
+  return await askBackend(buildSmartPrompt(userMessage, extraText), "smart");
+}
 
-  return await askBackendStream(buildSmartPrompt(userMessage, extraText), "smart", answer => {
-    target.innerHTML = formatAnswer(answer);
-    $("result").scrollTop = $("result").scrollHeight;
-  });
+async function runMainAction() {
+  if (isGenerating) return;
+
+  const userMessage = $("mainInput").value.trim();
+
+  if (
+    activeMode !== "analyze" &&
+    activeMode !== "pdf" &&
+    activeMode !== "youtube" &&
+    activeMode !== "smart" &&
+    !userMessage
+  ) return;
+
+  if (activeMode === "pdf" && !uploadedPdfFile) {
+    showAnswer("PDF", "Upload PDF first", "Upload a PDF file before using PDF mode.");
+    return;
+  }
+
+  if (activeMode === "smart" && activeSmartTool === "image" && !uploadedImageFile) {
+    showAnswer("IMAGE", "Upload image first", "Upload an image before using Image mode.");
+    return;
+  }
+
+  isGenerating = true;
+  showLoading("AI tænker");
+
+  try {
+    let data = null;
+
+    if (activeMode === "pdf") {
+      data = await askPdfBackend(userMessage);
+    } else if (activeMode === "smart") {
+      data = await runSmartAction(userMessage);
+    } else if (activeMode === "youtube") {
+      const loaded = await loadPageInfo(true);
+
+      if (!loaded || currentPageType !== "youtube") {
+        showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
+        return;
+      }
+
+      data = await askBackend(buildYoutubePrompt(userMessage), "youtube");
+    } else if (activeMode === "analyze") {
+      const loaded = await loadPageInfo(false);
+
+      if (!loaded) {
+        showAnswer("PAGE", "Could not read page", "Open YouTube, Google, Reddit or a normal webpage and try again.");
+        return;
+      }
+
+      data = await askBackend(buildAnalyzePrompt(userMessage), "analyze");
+    } else {
+      data = await askBackend(buildDirectPrompt(userMessage), activeMode);
+    }
+
+    if (!data) return;
+
+    if (activeMode === "chat") {
+      chatMessages.push({ role: "user", content: userMessage });
+      chatMessages.push({ role: "assistant", content: data.answer });
+      localStorage.setItem("ia_chat_messages", JSON.stringify(chatMessages.slice(-40)));
+      renderChatMessages();
+    } else {
+      showAnswer(activeMode.toUpperCase(), getResultTitle(), data.answer, data.sources || []);
+    }
+
+    saveHistory(activeMode, userMessage || uploadedPdfName || uploadedImageName || currentPageText, data.answer);
+    $("mainInput").value = "";
+  } catch (error) {
+    console.error(error);
+    showAnswer("ERROR", "Something went wrong", error.message || "Could not connect to backend.");
+  } finally {
+    isGenerating = false;
+  }
 }
 
 async function analyzeCurrentPage() {
   if (isGenerating) return;
 
   isGenerating = true;
-
-  const loadingText =
-    activeMode === "youtube" ? "Reading YouTube video" :
-    activeMode === "smart" ? "Reading browser context" :
-    "Analyzing page";
-
-  showLoading(loadingText);
+  showLoading("Analyzing page");
 
   try {
     const loaded = await loadPageInfo(true);
@@ -1056,31 +1098,32 @@ async function analyzeCurrentPage() {
       return;
     }
 
-    const label = activeMode === "youtube" ? "YOUTUBE" : activeMode === "smart" ? "SMART" : "ANALYZE";
-    const title = activeMode === "youtube" ? `${activeYoutubeTool} result` : activeMode === "smart" ? `${activeSmartTool} result` : "Page Analysis";
-    const prompt = activeMode === "youtube"
-      ? buildYoutubePrompt($("mainInput").value.trim())
-      : activeMode === "smart"
-        ? buildSmartPrompt($("mainInput").value.trim())
-        : buildAnalyzePrompt($("mainInput").value.trim());
-
     if (activeMode === "youtube" && currentPageType !== "youtube") {
       showAnswer("YOUTUBE", "Open a YouTube video", "Open a YouTube video page first, then try again.");
       return;
     }
 
-    const target = createAnswerBox(label, title);
+    const prompt =
+      activeMode === "youtube"
+        ? buildYoutubePrompt($("mainInput").value.trim())
+        : activeMode === "smart"
+          ? buildSmartPrompt($("mainInput").value.trim())
+          : buildAnalyzePrompt($("mainInput").value.trim());
 
-    const data = await askBackendStream(prompt, activeMode === "smart" ? "smart" : activeMode === "youtube" ? "youtube" : "analyze", answer => {
-      target.innerHTML = formatAnswer(answer);
-      $("result").scrollTop = $("result").scrollHeight;
-    });
+    const mode =
+      activeMode === "youtube"
+        ? "youtube"
+        : activeMode === "smart"
+          ? "smart"
+          : "analyze";
+
+    const data = await askBackend(prompt, mode);
 
     if (!data) return;
 
-    saveHistory(activeMode, currentPageText, data.answer);
+    showAnswer(mode.toUpperCase(), getResultTitle(), data.answer, data.sources || []);
+    saveHistory(mode, currentPageText, data.answer);
   } catch (error) {
-    console.error(error);
     showAnswer("ERROR", "Something went wrong", error.message || "Could not analyze page.");
   } finally {
     isGenerating = false;
@@ -1089,7 +1132,6 @@ async function analyzeCurrentPage() {
 
 async function handlePdfUpload(event) {
   const file = event.target.files?.[0];
-
   if (!file) return;
 
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
@@ -1102,20 +1144,13 @@ async function handlePdfUpload(event) {
 
   uploadedPdfFile = file;
   uploadedPdfName = file.name;
-
   $("pdfFileName").textContent = `Selected: ${uploadedPdfName}`;
   setPageStatus(`${uploadedPdfName} · PDF selected`);
-
-  showAnswer(
-    "PDF",
-    "PDF selected",
-    `PDF selected: ${uploadedPdfName}\n\nChoose Summary, Notes, Flashcards, Quiz, Citations or Important, then press the main button.`
-  );
+  showAnswer("PDF", "PDF selected", `PDF selected: ${uploadedPdfName}`);
 }
 
 function handleImageUpload(event) {
   const file = event.target.files?.[0];
-
   if (!file) return;
 
   const validTypes = ["image/png", "image/jpeg", "image/webp"];
@@ -1130,15 +1165,9 @@ function handleImageUpload(event) {
 
   uploadedImageFile = file;
   uploadedImageName = file.name;
-
   $("imageFileName").textContent = `Selected: ${uploadedImageName}`;
   setPageStatus(`${uploadedImageName} · Image selected`);
-
-  showAnswer(
-    "IMAGE",
-    "Image selected",
-    `Image selected: ${uploadedImageName}\n\nAsk a question or press Analyze image.`
-  );
+  showAnswer("IMAGE", "Image selected", `Image selected: ${uploadedImageName}`);
 }
 
 function showHistory() {
@@ -1173,7 +1202,6 @@ function clearAll() {
   currentPageType = "";
   currentPageLabel = "";
   pageLoaded = false;
-
   uploadedPdfFile = null;
   uploadedPdfName = "";
   uploadedImageFile = null;
@@ -1188,8 +1216,89 @@ function clearAll() {
   setActiveMode("chat");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+async function loadPreferences() {
+  if (!isLoggedIn()) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/preferences`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await response.json();
+    if (!response.ok) return;
+
+    const prefs = data.preferences || {};
+
+    if (prefs.theme === "light") {
+      document.body.style.filter = "brightness(1.05)";
+    } else {
+      document.body.style.filter = "";
+    }
+
+    if (prefs.language === "danish" && $("mainInput")) {
+      $("mainInput").placeholder = "Skriv dit spørgsmål...";
+    }
+  } catch (error) {
+    console.error("Preferences load failed:", error);
+  }
+}
+
+async function savePreferences() {
+  if (!isLoggedIn()) return;
+
+  try {
+    await fetch(`${BACKEND_URL}/preferences`, {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        language: userLanguage.startsWith("da") ? "danish" : "english",
+        theme: "dark",
+        tone: "clear"
+      })
+    });
+  } catch (error) {
+    console.error("Preferences save failed:", error);
+  }
+}
+
+async function autoLoadAccount() {
+  updateAccountStatus();
   updateProStatus();
+
+  if (!isLoggedIn()) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/me`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      localStorage.removeItem("ia_access_token");
+      localStorage.removeItem("ia_refresh_token");
+      localStorage.removeItem("ia_user_email");
+      updateAccountStatus();
+      return;
+    }
+
+    if (data.user?.email) {
+      localStorage.setItem("ia_user_email", data.user.email);
+    }
+
+    updateAccountStatus();
+    await loadPreferences();
+    await savePreferences();
+  } catch (error) {
+    console.error("Auto account load failed:", error);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  updateProStatus();
+  updateAccountStatus();
   setPageStatus("Ready");
 
   $("chatModeBtn").onclick = () => setActiveMode("chat");
@@ -1199,6 +1308,14 @@ document.addEventListener("DOMContentLoaded", () => {
   $("analyzeModeBtn").onclick = () => setActiveMode("analyze");
   $("pdfModeBtn").onclick = () => setActiveMode("pdf");
   $("youtubeModeBtn").onclick = () => setActiveMode("youtube");
+
+  $("accountBtn").onclick = showAccountPanel;
+  $("loginPanelBtn").onclick = () => setAccountPanel("login");
+  $("memoryPanelBtn").onclick = () => setAccountPanel("memory");
+  $("chatsPanelBtn").onclick = () => setAccountPanel("chats");
+  $("loginBtn").onclick = loginUser;
+  $("signupBtn").onclick = signUpUser;
+  $("logoutBtn").onclick = logoutUser;
 
   $("smartContextBtn").onclick = () => setSmartTool("context");
   $("selectedTextBtn").onclick = () => setSmartTool("selected");
@@ -1245,7 +1362,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("clearBtn").onclick = clearAll;
 
   setActiveMode("chat");
-  checkProStatus();
+
+  await checkProStatus();
+  await autoLoadAccount();
 });
 
 async function getPageInfo() {
