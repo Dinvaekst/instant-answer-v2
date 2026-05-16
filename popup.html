@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Instant Answer</title>
 
 <style>
@@ -13,17 +13,18 @@
 }
 
 :root{
-  --bg:#030712;
-  --card:rgba(15,23,42,.72);
-  --card2:rgba(17,25,40,.82);
-  --border:rgba(255,255,255,.08);
+  --bg:#020617;
+  --card:rgba(15,23,42,.82);
+  --card2:rgba(15,23,42,.92);
+  --border:rgba(255,255,255,.09);
   --text:#f8fafc;
   --muted:#94a3b8;
+  --soft:#cbd5e1;
   --primary:#7c3aed;
   --primary2:#2563eb;
-  --hover:rgba(255,255,255,.05);
-  --shadow:0 20px 60px rgba(0,0,0,.45);
-  --radius:26px;
+  --green:#22c55e;
+  --danger:#ef4444;
+  --shadow:0 24px 70px rgba(0,0,0,.55);
 }
 
 body{
@@ -33,46 +34,36 @@ body{
   font-family:Inter, Arial, sans-serif;
   color:var(--text);
   background:
-    radial-gradient(circle at top left,#312e81 0%,transparent 32%),
-    radial-gradient(circle at bottom right,#0f172a 0%,transparent 35%),
+    radial-gradient(circle at top left,rgba(124,58,237,.45),transparent 35%),
+    radial-gradient(circle at bottom right,rgba(37,99,235,.28),transparent 38%),
     #020617;
   padding:12px;
 }
 
 .app{
-  position:relative;
   height:100%;
   overflow:hidden;
   border-radius:34px;
-  padding:18px;
+  padding:16px;
   display:flex;
   flex-direction:column;
-  gap:14px;
-  background:var(--card);
+  gap:12px;
+  background:linear-gradient(180deg,rgba(15,23,42,.84),rgba(2,6,23,.92));
   border:1px solid var(--border);
-  backdrop-filter:blur(18px);
+  backdrop-filter:blur(22px);
   box-shadow:var(--shadow);
-}
-
-.app::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:linear-gradient(135deg,rgba(255,255,255,.06),transparent);
-  pointer-events:none;
 }
 
 .top{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  position:relative;
-  z-index:2;
 }
 
 .brand{
   font-size:14px;
-  font-weight:800;
+  font-weight:900;
+  letter-spacing:-.2px;
   background:linear-gradient(90deg,#ffffff,#c4b5fd);
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
@@ -80,113 +71,112 @@ body{
 
 .top-actions{
   display:flex;
-  gap:8px;
+  gap:7px;
 }
 
 button{
   border:none;
   cursor:pointer;
-  transition:all .2s ease;
+  transition:.18s ease;
   font-family:Inter, Arial, sans-serif;
 }
 
 .small-btn{
-  padding:9px 11px;
+  padding:8px 10px;
   border-radius:14px;
-  font-size:10.5px;
-  font-weight:800;
+  font-size:10px;
+  font-weight:900;
   color:white;
-  background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.075);
 }
 
 .small-btn:hover{
+  background:rgba(255,255,255,.1);
   transform:translateY(-1px);
-  background:rgba(255,255,255,.08);
+}
+
+.hero{
+  padding:2px 2px 0;
 }
 
 .hero h1{
-  margin-top:6px;
-  font-size:38px;
+  font-size:37px;
   line-height:.92;
   letter-spacing:-2px;
-  font-weight:900;
-  background:linear-gradient(180deg,#ffffff,#c4b5fd);
+  font-weight:950;
+  background:linear-gradient(180deg,#fff,#c4b5fd);
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
 }
 
 .subtitle{
-  margin-top:10px;
-  font-size:13px;
-  line-height:1.5;
+  margin-top:9px;
+  font-size:12.5px;
+  line-height:1.45;
   color:var(--muted);
 }
 
 .status-row{
   display:flex;
-  gap:8px;
-  margin-top:14px;
+  gap:7px;
+  margin-top:12px;
 }
 
-#proStatus,
-#accountStatus{
-  padding:10px 12px;
+.status-pill{
+  padding:9px 11px;
   border-radius:999px;
   font-size:10.5px;
-  font-weight:800;
+  font-weight:900;
+  white-space:nowrap;
   color:white;
   background:linear-gradient(135deg,var(--primary),var(--primary2));
-  box-shadow:0 10px 25px rgba(124,58,237,.35);
-  white-space:nowrap;
+  box-shadow:0 10px 25px rgba(124,58,237,.3);
 }
 
 #accountStatus{
   background:rgba(255,255,255,.06);
-  box-shadow:none;
   border:1px solid rgba(255,255,255,.08);
-  color:#cbd5e1;
+  box-shadow:none;
+  color:#dbeafe;
 }
 
 #pageStatus{
   flex:1;
-  padding:10px 12px;
-  border-radius:16px;
   overflow:hidden;
-  white-space:nowrap;
   text-overflow:ellipsis;
-  font-size:11.5px;
-  font-weight:600;
   color:var(--muted);
   background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.07);
+  box-shadow:none;
 }
 
 .mode-tabs{
   display:grid;
-  grid-template-columns:repeat(7,1fr);
-  gap:5px;
+  grid-template-columns:repeat(5,1fr);
+  gap:7px;
 }
 
 .mode-tab{
-  padding:9px 3px;
-  border-radius:13px;
-  font-size:9.5px;
-  font-weight:800;
+  padding:10px 5px;
+  border-radius:16px;
+  font-size:10px;
+  font-weight:900;
   color:var(--muted);
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.07);
 }
 
 .mode-tab:hover{
-  background:rgba(255,255,255,.08);
+  color:white;
+  background:rgba(255,255,255,.085);
 }
 
 .mode-tab.active{
   color:white;
   background:linear-gradient(135deg,var(--primary),var(--primary2));
-  border:none;
-  box-shadow:0 10px 24px rgba(124,58,237,.35);
+  border-color:transparent;
+  box-shadow:0 12px 28px rgba(124,58,237,.35);
 }
 
 .panel{
@@ -196,81 +186,85 @@ button{
   display:flex;
   flex-direction:column;
   border-radius:28px;
-  padding:16px;
+  padding:15px;
   background:var(--card2);
-  border:1px solid rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.07);
 }
 
 .panel-head{
-  margin-bottom:14px;
+  margin-bottom:12px;
 }
 
 .panel-title{
   font-size:21px;
-  font-weight:800;
-  color:white;
+  font-weight:900;
+  letter-spacing:-.5px;
 }
 
 .panel-subtitle{
   margin-top:5px;
   font-size:12px;
-  line-height:1.5;
+  line-height:1.45;
   color:var(--muted);
 }
 
 #result{
   flex:1;
+  min-height:0;
   overflow-y:auto;
   padding-right:4px;
-  margin-bottom:12px;
-  font-size:14px;
-  line-height:1.7;
+  margin-bottom:11px;
+  font-size:13.5px;
+  line-height:1.65;
 }
 
 .msg{
-  margin-bottom:12px;
-  padding:14px;
+  margin-bottom:11px;
+  padding:13px;
   border-radius:20px;
-  animation:fadeUp .25s ease;
+  animation:fadeUp .22s ease;
 }
 
 .user-msg{
-  margin-left:40px;
+  margin-left:42px;
   color:white;
   background:linear-gradient(135deg,var(--primary),#9333ea);
-  box-shadow:0 10px 25px rgba(124,58,237,.35);
+  box-shadow:0 12px 24px rgba(124,58,237,.3);
 }
 
 .ai-msg{
-  margin-right:20px;
+  margin-right:18px;
   color:#e2e8f0;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
-  backdrop-filter:blur(10px);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.075);
 }
 
 .msg-role{
-  font-size:10px;
-  font-weight:800;
+  font-size:9.5px;
+  font-weight:900;
   opacity:.65;
-  margin-bottom:6px;
+  margin-bottom:5px;
   text-transform:uppercase;
   letter-spacing:.8px;
+}
+
+.answer-box{
+  animation:fadeUp .22s ease;
 }
 
 .answer-label{
   font-size:10px;
   letter-spacing:1px;
   text-transform:uppercase;
-  font-weight:800;
+  font-weight:900;
   color:#a78bfa;
   margin-bottom:7px;
 }
 
 .answer-title{
-  font-size:20px;
-  font-weight:800;
-  margin-bottom:10px;
+  font-size:19px;
+  font-weight:900;
+  margin-bottom:9px;
   color:white;
 }
 
@@ -281,23 +275,29 @@ button{
   color:white;
 }
 
+.composer{
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+}
+
 textarea,
 .auth-input{
   width:100%;
   outline:none;
   border:none;
-  padding:14px;
+  padding:13px;
   border-radius:18px;
   font-size:13px;
-  line-height:1.5;
+  line-height:1.45;
   font-family:Inter, Arial, sans-serif;
   color:white;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.075);
 }
 
 textarea{
-  height:82px;
+  height:78px;
   resize:none;
 }
 
@@ -308,72 +308,66 @@ textarea::placeholder,
 
 textarea:focus,
 .auth-input:focus{
-  border:1px solid rgba(124,58,237,.6);
-  box-shadow:0 0 0 4px rgba(124,58,237,.15);
+  border-color:rgba(124,58,237,.65);
+  box-shadow:0 0 0 4px rgba(124,58,237,.14);
+}
+
+.action-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
 }
 
 .primary-btn,
 .secondary-btn{
   width:100%;
-  margin-top:10px;
-  padding:13px;
+  padding:12px;
   border-radius:18px;
   font-size:13px;
-  font-weight:800;
+  font-weight:900;
 }
 
 .primary-btn{
   color:white;
   background:linear-gradient(135deg,var(--primary),var(--primary2));
-  box-shadow:0 12px 30px rgba(124,58,237,.35);
+  box-shadow:0 12px 28px rgba(124,58,237,.32);
 }
 
 .primary-btn:hover{
-  transform:translateY(-1px) scale(1.01);
+  transform:translateY(-1px);
 }
 
 .secondary-btn{
   color:white;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.075);
 }
 
 .secondary-btn:hover{
-  background:rgba(255,255,255,.08);
+  background:rgba(255,255,255,.09);
 }
 
-.smart-tools,
-.math-tools,
-.pdf-tools,
-.youtube-tools,
-.account-tools{
+.mode-tools{
   display:none;
   grid-template-columns:repeat(3,1fr);
-  gap:8px;
+  gap:7px;
   margin-bottom:10px;
 }
 
-.smart-tool-btn,
-.math-tool-btn,
-.pdf-tool-btn,
-.youtube-tool-btn,
-.account-tool-btn{
+.tool-btn{
   padding:10px 6px;
   border-radius:14px;
   font-size:10px;
-  font-weight:800;
+  font-weight:900;
   color:var(--muted);
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.07);
 }
 
-.smart-tool-btn.active,
-.math-tool-btn.active,
-.pdf-tool-btn.active,
-.youtube-tool-btn.active,
-.account-tool-btn.active{
+.tool-btn.active{
   color:white;
   background:linear-gradient(135deg,var(--primary),var(--primary2));
+  border-color:transparent;
 }
 
 .file-box,
@@ -382,13 +376,14 @@ textarea:focus,
   margin-bottom:10px;
   padding:12px;
   border-radius:18px;
-  background:rgba(255,255,255,.03);
-  border:1px dashed rgba(255,255,255,.12);
+  background:rgba(255,255,255,.035);
+  border:1px dashed rgba(255,255,255,.13);
 }
 
 .file-box input{
   width:100%;
   color:white;
+  font-size:11px;
 }
 
 #pdfFileName,
@@ -415,8 +410,7 @@ textarea:focus,
 .account-mini{
   font-size:11px;
   color:var(--muted);
-  margin-top:8px;
-  line-height:1.5;
+  line-height:1.45;
 }
 
 .memory-item,
@@ -427,8 +421,8 @@ textarea:focus,
   margin-top:10px;
   padding:12px;
   border-radius:18px;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.075);
 }
 
 .memory-item,
@@ -440,13 +434,13 @@ textarea:focus,
 .math-inline{
   padding:3px 6px;
   border-radius:8px;
-  background:rgba(255,255,255,.06);
+  background:rgba(255,255,255,.07);
   color:#c4b5fd;
-  font-weight:700;
+  font-weight:800;
 }
 
 .code-block{
-  background:rgba(0,0,0,.35);
+  background:rgba(0,0,0,.36);
   border:1px solid rgba(255,255,255,.08);
   padding:12px;
   border-radius:14px;
@@ -490,21 +484,24 @@ textarea:focus,
   animation-delay:.4s;
 }
 
+.hidden{
+  display:none !important;
+}
+
 ::-webkit-scrollbar{
   width:6px;
 }
 
 ::-webkit-scrollbar-thumb{
   border-radius:999px;
-  background:rgba(255,255,255,.12);
+  background:rgba(255,255,255,.14);
 }
 
 @keyframes fadeUp{
   from{
     opacity:0;
-    transform:translateY(10px);
+    transform:translateY(8px);
   }
-
   to{
     opacity:1;
     transform:translateY(0);
@@ -516,7 +513,6 @@ textarea:focus,
     opacity:.25;
     transform:scale(.8);
   }
-
   40%{
     opacity:1;
     transform:scale(1.15);
@@ -542,40 +538,38 @@ textarea:focus,
     <h1>Instant<br>Answer</h1>
 
     <div class="subtitle">
-      Smart AI for browser, school, math, PDF, YouTube, images and memory.
+      Fast AI for chat, pages, study, math, PDFs and images.
     </div>
 
     <div class="status-row">
-      <div id="proStatus">Free</div>
-      <div id="accountStatus">Guest</div>
-      <div id="pageStatus">Ready</div>
+      <div id="proStatus" class="status-pill">Free</div>
+      <div id="accountStatus" class="status-pill">Guest</div>
+      <div id="pageStatus" class="status-pill">Ready</div>
     </div>
   </div>
 
   <div class="mode-tabs">
     <button id="chatModeBtn" class="mode-tab active" type="button">Chat</button>
-    <button id="smartModeBtn" class="mode-tab" type="button">Smart</button>
-    <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
+    <button id="pageModeBtn" class="mode-tab" type="button">Page</button>
     <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
-    <button id="analyzeModeBtn" class="mode-tab" type="button">Analyze</button>
-    <button id="pdfModeBtn" class="mode-tab" type="button">PDF</button>
-    <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
+    <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
+    <button id="filesModeBtn" class="mode-tab" type="button">Files</button>
   </div>
 
   <div class="panel">
     <div class="panel-head">
       <div id="panelTitle" class="panel-title">Chat Mode</div>
-      <div id="panelSubtitle" class="panel-subtitle">Ask anything and get a clear answer.</div>
+      <div id="panelSubtitle" class="panel-subtitle">Ask anything and get a clean answer.</div>
     </div>
 
     <div id="result">
       <div class="loading">Ready</div>
     </div>
 
-    <div id="accountTools" class="account-tools">
-      <button id="loginPanelBtn" class="account-tool-btn active" type="button">Login</button>
-      <button id="memoryPanelBtn" class="account-tool-btn" type="button">Memory</button>
-      <button id="chatsPanelBtn" class="account-tool-btn" type="button">Chats</button>
+    <div id="accountTools" class="mode-tools">
+      <button id="loginPanelBtn" class="tool-btn active" type="button">Login</button>
+      <button id="memoryPanelBtn" class="tool-btn" type="button">Memory</button>
+      <button id="chatsPanelBtn" class="tool-btn" type="button">Chats</button>
     </div>
 
     <div id="accountBox" class="account-box">
@@ -587,60 +581,46 @@ textarea:focus,
           <button id="signupBtn" class="primary-btn" type="button">Sign up</button>
         </div>
         <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
-        <div id="authInfo" class="account-mini">Login to sync memory and chats across devices.</div>
+        <div id="authInfo" class="account-mini">Login to sync memory and saved chats.</div>
       </div>
     </div>
 
-    <div id="smartTools" class="smart-tools">
-      <button id="smartContextBtn" class="smart-tool-btn active" type="button">Context</button>
-      <button id="selectedTextBtn" class="smart-tool-btn" type="button">Selected</button>
-      <button id="screenshotBtn" class="smart-tool-btn" type="button">Screenshot</button>
-      <button id="imageUploadBtn" class="smart-tool-btn" type="button">Image</button>
-      <button id="autoDetectBtn" class="smart-tool-btn" type="button">Auto</button>
-      <button id="classifyPageBtn" class="smart-tool-btn" type="button">Classify</button>
+    <div id="pageTools" class="mode-tools">
+      <button id="pageContextBtn" class="tool-btn active" type="button">Page</button>
+      <button id="selectedTextBtn" class="tool-btn" type="button">Selected</button>
+      <button id="screenshotBtn" class="tool-btn" type="button">Screenshot</button>
     </div>
 
-    <div id="mathTools" class="math-tools">
-      <button id="calcToolBtn" class="math-tool-btn active" type="button">Calculator</button>
-      <button id="equationToolBtn" class="math-tool-btn" type="button">Equation</button>
-      <button id="percentToolBtn" class="math-tool-btn" type="button">Percent</button>
-      <button id="graphToolBtn" class="math-tool-btn" type="button">Graph</button>
-      <button id="formulaToolBtn" class="math-tool-btn" type="button">Formula</button>
-      <button id="wordToolBtn" class="math-tool-btn" type="button">Word</button>
+    <div id="mathTools" class="mode-tools">
+      <button id="calcToolBtn" class="tool-btn active" type="button">Calculate</button>
+      <button id="equationToolBtn" class="tool-btn" type="button">Equation</button>
+      <button id="wordToolBtn" class="tool-btn" type="button">Word</button>
     </div>
 
-    <div id="pdfTools" class="pdf-tools">
-      <button id="pdfSummaryBtn" class="pdf-tool-btn active" type="button">Summary</button>
-      <button id="pdfNotesBtn" class="pdf-tool-btn" type="button">Notes</button>
-      <button id="pdfFlashcardsBtn" class="pdf-tool-btn" type="button">Cards</button>
-      <button id="pdfQuizBtn" class="pdf-tool-btn" type="button">Quiz</button>
-      <button id="pdfCitationsBtn" class="pdf-tool-btn" type="button">Citations</button>
-      <button id="pdfImportantBtn" class="pdf-tool-btn" type="button">Important</button>
-    </div>
-
-    <div id="youtubeTools" class="youtube-tools">
-      <button id="ytSummaryBtn" class="youtube-tool-btn active" type="button">Summary</button>
-      <button id="ytNotesBtn" class="youtube-tool-btn" type="button">Notes</button>
-      <button id="ytMomentsBtn" class="youtube-tool-btn" type="button">Moments</button>
-      <button id="ytQuizBtn" class="youtube-tool-btn" type="button">Quiz</button>
-      <button id="ytChaptersBtn" class="youtube-tool-btn" type="button">Chapters</button>
-      <button id="ytCommentsBtn" class="youtube-tool-btn" type="button">Comments</button>
+    <div id="filesTools" class="mode-tools">
+      <button id="pdfToolBtn" class="tool-btn active" type="button">PDF</button>
+      <button id="imageToolBtn" class="tool-btn" type="button">Image</button>
+      <button id="summaryToolBtn" class="tool-btn" type="button">Summary</button>
     </div>
 
     <div id="pdfUploadBox" class="file-box">
-      <input id="pdfFileInput" type="file" accept="application/pdf,.pdf"/>
+      <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
       <div id="pdfFileName">No PDF selected</div>
     </div>
 
     <div id="imageUploadBox" class="file-box">
-      <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"/>
+      <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
       <div id="imageFileName">No image selected</div>
     </div>
 
-    <textarea id="mainInput" placeholder="Skriv dit spørgsmål..."></textarea>
+    <div class="composer">
+      <textarea id="mainInput" placeholder="Skriv dit spørgsmål..."></textarea>
 
-    <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
-    <button id="pageActionBtn" class="secondary-btn" type="button" style="display:none;">Analyze current page</button>
+      <div class="action-row">
+        <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
+        <button id="pageActionBtn" class="secondary-btn" type="button">Read page</button>
+      </div>
+    </div>
   </div>
 
 </div>
