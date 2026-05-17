@@ -13,18 +13,18 @@
 }
 
 :root{
-  --bg:#020617;
-  --card:rgba(15,23,42,.82);
-  --card2:rgba(15,23,42,.92);
+  --bg:#080808;
+  --card:#111111;
+  --card2:#171717;
+  --soft:#202020;
   --border:rgba(255,255,255,.09);
-  --text:#f8fafc;
-  --muted:#94a3b8;
-  --soft:#cbd5e1;
-  --primary:#7c3aed;
-  --primary2:#2563eb;
-  --green:#22c55e;
-  --danger:#ef4444;
-  --shadow:0 24px 70px rgba(0,0,0,.55);
+  --text:#ffffff;
+  --muted:#a3a3a3;
+  --green:#b7ff4a;
+  --green2:#71e000;
+  --blue:#7dd3fc;
+  --danger:#ff5c5c;
+  --shadow:0 24px 80px rgba(0,0,0,.55);
 }
 
 body{
@@ -34,9 +34,9 @@ body{
   font-family:Inter, Arial, sans-serif;
   color:var(--text);
   background:
-    radial-gradient(circle at top left,rgba(124,58,237,.45),transparent 35%),
-    radial-gradient(circle at bottom right,rgba(37,99,235,.28),transparent 38%),
-    #020617;
+    radial-gradient(circle at top left,rgba(183,255,74,.18),transparent 32%),
+    radial-gradient(circle at bottom right,rgba(125,211,252,.12),transparent 38%),
+    #050505;
   padding:12px;
 }
 
@@ -48,9 +48,8 @@ body{
   display:flex;
   flex-direction:column;
   gap:12px;
-  background:linear-gradient(180deg,rgba(15,23,42,.84),rgba(2,6,23,.92));
+  background:linear-gradient(180deg,rgba(18,18,18,.92),rgba(7,7,7,.96));
   border:1px solid var(--border);
-  backdrop-filter:blur(22px);
   box-shadow:var(--shadow);
 }
 
@@ -62,11 +61,12 @@ body{
 
 .brand{
   font-size:14px;
-  font-weight:900;
+  font-weight:950;
   letter-spacing:-.2px;
-  background:linear-gradient(90deg,#ffffff,#c4b5fd);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
+}
+
+.brand span{
+  color:var(--green);
 }
 
 .top-actions{
@@ -87,27 +87,24 @@ button{
   font-size:10px;
   font-weight:900;
   color:white;
-  background:rgba(255,255,255,.055);
-  border:1px solid rgba(255,255,255,.075);
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
 }
 
 .small-btn:hover{
-  background:rgba(255,255,255,.1);
+  background:rgba(255,255,255,.12);
   transform:translateY(-1px);
 }
 
-.hero{
-  padding:2px 2px 0;
-}
-
 .hero h1{
-  font-size:37px;
+  font-size:38px;
   line-height:.92;
   letter-spacing:-2px;
   font-weight:950;
-  background:linear-gradient(180deg,#fff,#c4b5fd);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
+}
+
+.hero h1 span{
+  color:var(--green);
 }
 
 .subtitle{
@@ -129,16 +126,8 @@ button{
   font-size:10.5px;
   font-weight:900;
   white-space:nowrap;
-  color:white;
-  background:linear-gradient(135deg,var(--primary),var(--primary2));
-  box-shadow:0 10px 25px rgba(124,58,237,.3);
-}
-
-#accountStatus{
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.08);
-  box-shadow:none;
-  color:#dbeafe;
+  color:#080808;
+  background:var(--green);
 }
 
 #pageStatus{
@@ -146,37 +135,36 @@ button{
   overflow:hidden;
   text-overflow:ellipsis;
   color:var(--muted);
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.07);
-  box-shadow:none;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
 }
 
 .mode-tabs{
   display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:7px;
+  grid-template-columns:repeat(6,1fr);
+  gap:6px;
 }
 
 .mode-tab{
-  padding:10px 5px;
-  border-radius:16px;
-  font-size:10px;
-  font-weight:900;
+  padding:10px 4px;
+  border-radius:15px;
+  font-size:9.3px;
+  font-weight:950;
   color:var(--muted);
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--border);
 }
 
 .mode-tab:hover{
   color:white;
-  background:rgba(255,255,255,.085);
+  background:rgba(255,255,255,.11);
 }
 
 .mode-tab.active{
-  color:white;
-  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  color:#080808;
+  background:var(--green);
   border-color:transparent;
-  box-shadow:0 12px 28px rgba(124,58,237,.35);
+  box-shadow:0 12px 28px rgba(183,255,74,.22);
 }
 
 .panel{
@@ -187,8 +175,8 @@ button{
   flex-direction:column;
   border-radius:28px;
   padding:15px;
-  background:var(--card2);
-  border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--border);
 }
 
 .panel-head{
@@ -197,7 +185,7 @@ button{
 
 .panel-title{
   font-size:21px;
-  font-weight:900;
+  font-weight:950;
   letter-spacing:-.5px;
 }
 
@@ -218,36 +206,6 @@ button{
   line-height:1.65;
 }
 
-.msg{
-  margin-bottom:11px;
-  padding:13px;
-  border-radius:20px;
-  animation:fadeUp .22s ease;
-}
-
-.user-msg{
-  margin-left:42px;
-  color:white;
-  background:linear-gradient(135deg,var(--primary),#9333ea);
-  box-shadow:0 12px 24px rgba(124,58,237,.3);
-}
-
-.ai-msg{
-  margin-right:18px;
-  color:#e2e8f0;
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.075);
-}
-
-.msg-role{
-  font-size:9.5px;
-  font-weight:900;
-  opacity:.65;
-  margin-bottom:5px;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-}
-
 .answer-box{
   animation:fadeUp .22s ease;
 }
@@ -256,16 +214,19 @@ button{
   font-size:10px;
   letter-spacing:1px;
   text-transform:uppercase;
-  font-weight:900;
-  color:#a78bfa;
+  font-weight:950;
+  color:var(--green);
   margin-bottom:7px;
 }
 
 .answer-title{
   font-size:19px;
-  font-weight:900;
+  font-weight:950;
   margin-bottom:9px;
-  color:white;
+}
+
+.answer-content{
+  color:#e5e5e5;
 }
 
 .answer-content h1,
@@ -275,76 +236,34 @@ button{
   color:white;
 }
 
-.composer{
-  display:flex;
-  flex-direction:column;
-  gap:9px;
-}
-
-textarea,
-.auth-input{
-  width:100%;
-  outline:none;
-  border:none;
+.msg{
+  margin-bottom:11px;
   padding:13px;
-  border-radius:18px;
-  font-size:13px;
-  line-height:1.45;
-  font-family:Inter, Arial, sans-serif;
-  color:white;
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.075);
+  border-radius:20px;
+  animation:fadeUp .22s ease;
 }
 
-textarea{
-  height:78px;
-  resize:none;
+.user-msg{
+  margin-left:42px;
+  color:#080808;
+  background:var(--green);
+  box-shadow:0 12px 24px rgba(183,255,74,.18);
 }
 
-textarea::placeholder,
-.auth-input::placeholder{
-  color:#64748b;
+.ai-msg{
+  margin-right:18px;
+  color:#e5e5e5;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
 }
 
-textarea:focus,
-.auth-input:focus{
-  border-color:rgba(124,58,237,.65);
-  box-shadow:0 0 0 4px rgba(124,58,237,.14);
-}
-
-.action-row{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:9px;
-}
-
-.primary-btn,
-.secondary-btn{
-  width:100%;
-  padding:12px;
-  border-radius:18px;
-  font-size:13px;
-  font-weight:900;
-}
-
-.primary-btn{
-  color:white;
-  background:linear-gradient(135deg,var(--primary),var(--primary2));
-  box-shadow:0 12px 28px rgba(124,58,237,.32);
-}
-
-.primary-btn:hover{
-  transform:translateY(-1px);
-}
-
-.secondary-btn{
-  color:white;
-  background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.075);
-}
-
-.secondary-btn:hover{
-  background:rgba(255,255,255,.09);
+.msg-role{
+  font-size:9.5px;
+  font-weight:950;
+  opacity:.65;
+  margin-bottom:5px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
 }
 
 .mode-tools{
@@ -358,26 +277,25 @@ textarea:focus,
   padding:10px 6px;
   border-radius:14px;
   font-size:10px;
-  font-weight:900;
+  font-weight:950;
   color:var(--muted);
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--border);
 }
 
 .tool-btn.active{
-  color:white;
-  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  color:#080808;
+  background:var(--green);
   border-color:transparent;
 }
 
-.file-box,
-.account-box{
+.file-box{
   display:none;
   margin-bottom:10px;
   padding:12px;
   border-radius:18px;
-  background:rgba(255,255,255,.035);
-  border:1px dashed rgba(255,255,255,.13);
+  background:rgba(255,255,255,.045);
+  border:1px dashed rgba(255,255,255,.18);
 }
 
 .file-box input{
@@ -396,52 +314,75 @@ textarea:focus,
   text-overflow:ellipsis;
 }
 
-.auth-grid{
-  display:grid;
-  gap:8px;
+.composer{
+  display:flex;
+  flex-direction:column;
+  gap:9px;
 }
 
-.auth-row{
+textarea{
+  width:100%;
+  height:78px;
+  resize:none;
+  outline:none;
+  border:none;
+  padding:13px;
+  border-radius:18px;
+  font-size:13px;
+  line-height:1.45;
+  font-family:Inter, Arial, sans-serif;
+  color:white;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
+}
+
+textarea::placeholder{
+  color:#777;
+}
+
+textarea:focus{
+  border-color:rgba(183,255,74,.55);
+  box-shadow:0 0 0 4px rgba(183,255,74,.1);
+}
+
+.action-row{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:8px;
+  gap:9px;
 }
 
-.account-mini{
-  font-size:11px;
-  color:var(--muted);
-  line-height:1.45;
-}
-
-.memory-item,
-.chat-item,
-.math-formula-block,
-.source-box,
-.history-item{
-  margin-top:10px;
+.primary-btn,
+.secondary-btn{
+  width:100%;
   padding:12px;
   border-radius:18px;
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.075);
+  font-size:13px;
+  font-weight:950;
 }
 
-.memory-item,
-.chat-item{
-  font-size:12px;
-  color:#e5e7eb;
+.primary-btn{
+  color:#080808;
+  background:var(--green);
+  box-shadow:0 12px 28px rgba(183,255,74,.22);
 }
 
-.math-inline{
-  padding:3px 6px;
-  border-radius:8px;
-  background:rgba(255,255,255,.07);
-  color:#c4b5fd;
-  font-weight:800;
+.primary-btn:hover{
+  transform:translateY(-1px);
+}
+
+.secondary-btn{
+  color:white;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
+}
+
+.secondary-btn:hover{
+  background:rgba(255,255,255,.12);
 }
 
 .code-block{
-  background:rgba(0,0,0,.36);
-  border:1px solid rgba(255,255,255,.08);
+  background:#050505;
+  border:1px solid rgba(255,255,255,.1);
   padding:12px;
   border-radius:14px;
   overflow:auto;
@@ -449,6 +390,15 @@ textarea:focus,
   font-size:12px;
   line-height:1.6;
   color:#e5e7eb;
+}
+
+.source-box,
+.history-item{
+  margin-top:10px;
+  padding:12px;
+  border-radius:18px;
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--border);
 }
 
 .loading{
@@ -471,7 +421,7 @@ textarea:focus,
 .typing-dots span{
   width:7px;
   height:7px;
-  background:#a78bfa;
+  background:var(--green);
   border-radius:50%;
   animation:dotPulse 1.2s infinite ease-in-out;
 }
@@ -484,17 +434,13 @@ textarea:focus,
   animation-delay:.4s;
 }
 
-.hidden{
-  display:none !important;
-}
-
 ::-webkit-scrollbar{
   width:6px;
 }
 
 ::-webkit-scrollbar-thumb{
   border-radius:999px;
-  background:rgba(255,255,255,.14);
+  background:rgba(255,255,255,.18);
 }
 
 @keyframes fadeUp{
@@ -525,82 +471,67 @@ textarea:focus,
 <div class="app">
 
   <div class="top">
-    <div class="brand">Instant Answer AI</div>
-
+    <div class="brand">Instant <span>Answer</span></div>
     <div class="top-actions">
-      <button id="accountBtn" class="small-btn" type="button">Account</button>
       <button id="historyBtn" class="small-btn" type="button">History</button>
       <button id="clearBtn" class="small-btn" type="button">Clear</button>
     </div>
   </div>
 
   <div class="hero">
-    <h1>Instant<br>Answer</h1>
-
+    <h1>Fast AI<br><span>for work</span></h1>
     <div class="subtitle">
-      Fast AI for chat, pages, study, math, PDFs and images.
+      Quick answers, deep help, study notes, page reading, YouTube summaries and file analysis.
     </div>
 
     <div class="status-row">
       <div id="proStatus" class="status-pill">Free</div>
-      <div id="accountStatus" class="status-pill">Guest</div>
       <div id="pageStatus" class="status-pill">Ready</div>
     </div>
   </div>
 
   <div class="mode-tabs">
-    <button id="chatModeBtn" class="mode-tab active" type="button">Chat</button>
-    <button id="pageModeBtn" class="mode-tab" type="button">Page</button>
+    <button id="quickModeBtn" class="mode-tab active" type="button">Quick</button>
+    <button id="deepModeBtn" class="mode-tab" type="button">Deep</button>
     <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
-    <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
+    <button id="pageModeBtn" class="mode-tab" type="button">Page</button>
+    <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
     <button id="filesModeBtn" class="mode-tab" type="button">Files</button>
   </div>
 
   <div class="panel">
+
     <div class="panel-head">
-      <div id="panelTitle" class="panel-title">Chat Mode</div>
-      <div id="panelSubtitle" class="panel-subtitle">Ask anything and get a clean answer.</div>
+      <div id="panelTitle" class="panel-title">Quick Mode</div>
+      <div id="panelSubtitle" class="panel-subtitle">Fast answers with simple wording.</div>
     </div>
 
     <div id="result">
       <div class="loading">Ready</div>
     </div>
 
-    <div id="accountTools" class="mode-tools">
-      <button id="loginPanelBtn" class="tool-btn active" type="button">Login</button>
-      <button id="memoryPanelBtn" class="tool-btn" type="button">Memory</button>
-      <button id="chatsPanelBtn" class="tool-btn" type="button">Chats</button>
-    </div>
-
-    <div id="accountBox" class="account-box">
-      <div class="auth-grid">
-        <input id="authEmail" class="auth-input" type="email" placeholder="Email" />
-        <input id="authPassword" class="auth-input" type="password" placeholder="Password" />
-        <div class="auth-row">
-          <button id="loginBtn" class="secondary-btn" type="button">Login</button>
-          <button id="signupBtn" class="primary-btn" type="button">Sign up</button>
-        </div>
-        <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
-        <div id="authInfo" class="account-mini">Login to sync memory and saved chats.</div>
-      </div>
+    <div id="studyTools" class="mode-tools">
+      <button id="studyExplainBtn" class="tool-btn active" type="button">Explain</button>
+      <button id="studyNotesBtn" class="tool-btn" type="button">Notes</button>
+      <button id="studyQuizBtn" class="tool-btn" type="button">Quiz</button>
     </div>
 
     <div id="pageTools" class="mode-tools">
-      <button id="pageContextBtn" class="tool-btn active" type="button">Page</button>
-      <button id="selectedTextBtn" class="tool-btn" type="button">Selected</button>
-      <button id="screenshotBtn" class="tool-btn" type="button">Screenshot</button>
+      <button id="pageReadBtn" class="tool-btn active" type="button">Page</button>
+      <button id="pageSelectedBtn" class="tool-btn" type="button">Selected</button>
+      <button id="pageSummaryBtn" class="tool-btn" type="button">Summary</button>
     </div>
 
-    <div id="mathTools" class="mode-tools">
-      <button id="calcToolBtn" class="tool-btn active" type="button">Calculate</button>
-      <button id="equationToolBtn" class="tool-btn" type="button">Equation</button>
-      <button id="wordToolBtn" class="tool-btn" type="button">Word</button>
+    <div id="youtubeTools" class="mode-tools">
+      <button id="ytSummaryBtn" class="tool-btn active" type="button">Summary</button>
+      <button id="ytNotesBtn" class="tool-btn" type="button">Notes</button>
+      <button id="ytQuizBtn" class="tool-btn" type="button">Quiz</button>
     </div>
 
     <div id="filesTools" class="mode-tools">
-      <button id="pdfToolBtn" class="tool-btn active" type="button">PDF</button>
-      <button id="imageToolBtn" class="tool-btn" type="button">Image</button>
-      <button id="summaryToolBtn" class="tool-btn" type="button">Summary</button>
+      <button id="filePdfBtn" class="tool-btn active" type="button">PDF</button>
+      <button id="fileImageBtn" class="tool-btn" type="button">Image</button>
+      <button id="fileNotesBtn" class="tool-btn" type="button">Notes</button>
     </div>
 
     <div id="pdfUploadBox" class="file-box">
@@ -614,15 +545,15 @@ textarea:focus,
     </div>
 
     <div class="composer">
-      <textarea id="mainInput" placeholder="Skriv dit spørgsmål..."></textarea>
+      <textarea id="mainInput" placeholder="Ask anything..."></textarea>
 
       <div class="action-row">
         <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
-        <button id="pageActionBtn" class="secondary-btn" type="button">Read page</button>
+        <button id="readPageBtn" class="secondary-btn" type="button">Read page</button>
       </div>
     </div>
-  </div>
 
+  </div>
 </div>
 
 <script src="popup.js"></script>
