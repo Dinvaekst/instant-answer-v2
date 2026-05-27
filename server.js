@@ -75,6 +75,19 @@ async function getUserPlan(userId) {
   return data?.plan || "free";
 }
 
+async function getUserProfile(userId) {
+  if (!supabase || !userId) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  if (error) return null;
+  return data || null;
+}
+
 async function getOrCreateMemoryProfile(user) {
   if (!supabase || !user?.id) return null;
 
@@ -377,7 +390,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "2.6-memory-complete",
+    version: "2.7-subscription-dashboard",
     modes: ["quick", "deep", "study", "page", "youtube", "files"],
     providers: {
       openai: Boolean(process.env.OPENAI_API_KEY),
@@ -395,11 +408,13 @@ app.post("/check-pro", async (req, res) => {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    const plan = await getUserPlan(user.id);
+    const profile = await getUserProfile(user.id);
+    const plan = profile?.plan || "free";
 
     res.json({
       pro: plan === "pro",
-      plan
+      plan,
+      stripe_customer_id: profile?.stripe_customer_id || null
     });
   } catch (error) {
     console.error("Check pro error:", error);
@@ -543,13 +558,54 @@ app.post("/create-checkout", async (req, res) => {
         deviceId: deviceId || ""
       },
       success_url: `${process.env.BACKEND_URL || "https://instant-answer-backend-clean.onrender.com"}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: process.env.CANCEL_URL || "https://google.com"
+      cancel_url:
+        process.env.CANCEL_URL ||
+        process.env.PORTAL_RETURN_URL ||
+        "https://instant-answer-backend-clean.onrender.com"
     });
 
     res.json({ url: session.url });
   } catch (error) {
     console.error("Checkout error:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/billing-portal", async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!stripe) {
+      return res.status(500).json({ error: "Stripe not configured" });
+    }
+
+    const profile = await getUserProfile(user.id);
+
+    if (!profile?.stripe_customer_id) {
+      return res.status(400).json({
+        error: "No Stripe customer found. Upgrade first before managing billing."
+      });
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: profile.stripe_customer_id,
+      return_url:
+        process.env.PORTAL_RETURN_URL ||
+        "https://instant-answer-backend-clean.onrender.com"
+    });
+
+    res.json({
+      url: portalSession.url
+    });
+  } catch (error) {
+    console.error("Billing portal error:", error);
+    res.status(500).json({
+      error: "Could not create billing portal"
+    });
   }
 });
 
