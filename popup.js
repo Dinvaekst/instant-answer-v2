@@ -4,10 +4,8 @@ const ASK_URL = `${BACKEND_URL}/ask`;
 const CHECK_PRO_URL = `${BACKEND_URL}/check-pro`;
 const ASK_PDF_URL = `${BACKEND_URL}/ask-pdf`;
 const ASK_IMAGE_URL = `${BACKEND_URL}/ask-image`;
-const CHECKOUT_URL = `${BACKEND_URL}/create-checkout`;
 const HISTORY_URL = `${BACKEND_URL}/history`;
 const MEMORY_URL = `${BACKEND_URL}/memory`;
-const BILLING_PORTAL_URL = `${BACKEND_URL}/billing-portal`;
 
 const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
 
@@ -52,7 +50,7 @@ function showAnswer(label, title, answer) {
     <div class="answer-box">
       <div class="answer-label">${escapeHTML(label)}</div>
       <div class="answer-title">${escapeHTML(title)}</div>
-      <div class="answer-content">${String(answer || "").replace(/\n/g,"<br>")}</div>
+      <div class="answer-content">${String(answer || "").replace(/\n/g, "<br>")}</div>
     </div>
   `;
 }
@@ -68,9 +66,30 @@ async function getAccessToken() {
   return session?.access_token || "";
 }
 
+function getTodayUsageKey() {
+  const date = new Date().toISOString().split("T")[0];
+  const userPart = currentUser?.id || "guest";
+  return `ia_usage_${userPart}_${date}`;
+}
+
+function getUsage() {
+  return Number(localStorage.getItem(getTodayUsageKey()) || 0);
+}
+
+function updateFreeStatus() {
+  const usage = getUsage();
+  $("proStatus").textContent =
+    `Free · ${Math.max(0, DAILY_LIMIT - usage)}/${DAILY_LIMIT}`;
+}
+
 async function checkProStatus() {
   try {
     const token = await getAccessToken();
+
+    if (!token) {
+      updateFreeStatus();
+      return;
+    }
 
     const response = await fetch(CHECK_PRO_URL, {
       method: "POST",
@@ -92,137 +111,36 @@ async function checkProStatus() {
       $("upgradeBtn").textContent = "Pro";
     } else {
       localStorage.removeItem("instant_answer_pro");
-
-      const usage =
-        Number(
-          localStorage.getItem(
-            `ia_usage_${new Date().toISOString().split("T")[0]}`
-          ) || 0
-        );
-
-      $("proStatus").textContent =
-        `Free · ${Math.max(0, DAILY_LIMIT - usage)}/${DAILY_LIMIT}`;
-
+      updateFreeStatus();
       $("upgradeBtn").textContent = "Upgrade";
     }
   } catch (error) {
     console.error(error);
+    updateFreeStatus();
   }
 }
 
 async function upgradeToPro() {
-  try {
-    const token = await getAccessToken();
+  const token = await getAccessToken();
 
-    if (!token) {
-      showAnswer(
-        "Auth",
-        "Login required",
-        "Please login first."
-      );
-      return;
-    }
-
-    showLoading("Opening checkout");
-
-    const response = await fetch(CHECKOUT_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({})
-    });
-
-    const data = await response.json();
-
-    if (data?.url) {
-      chrome.tabs.create({
-        url: data.url
-      });
-
-      showAnswer(
-        "Upgrade",
-        "Stripe checkout opened",
-        "Complete payment in the new tab."
-      );
-
-      return;
-    }
-
-    chrome.tabs.create({
-      url: PRO_LINK
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    chrome.tabs.create({
-      url: PRO_LINK
-    });
-  }
-}
-
-async function openBillingPortal() {
-  try {
-    const token = await getAccessToken();
-
-    if (!token) {
-      showAnswer(
-        "Auth",
-        "Login required",
-        "Please login first."
-      );
-      return;
-    }
-
-    showLoading("Opening billing");
-
-    const response = await fetch(BILLING_PORTAL_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
-
-    const data = await response.json();
-
-    if (data?.url) {
-      chrome.tabs.create({
-        url: data.url
-      });
-
-      showAnswer(
-        "Billing",
-        "Subscription dashboard opened",
-        `You can now:
-
-• Cancel subscription
-• Update card
-• Download invoices
-• Switch plans
-• View billing history`
-      );
-
-      return;
-    }
-
+  if (!token) {
     showAnswer(
-      "Billing",
-      "No subscription found",
-      "Upgrade first before opening billing dashboard."
+      "Auth",
+      "Login required",
+      "Please login first before upgrading."
     );
-
-  } catch (error) {
-    console.error(error);
-
-    showAnswer(
-      "Billing",
-      "Billing failed",
-      "Could not open Stripe billing portal."
-    );
+    return;
   }
+
+  chrome.tabs.create({
+    url: PRO_LINK
+  });
+
+  showAnswer(
+    "Upgrade",
+    "Stripe checkout opened",
+    "Complete payment in the new tab. After payment, return to Instant Answer and reopen the extension."
+  );
 }
 
 async function logout() {
@@ -239,13 +157,11 @@ function switchAuthMode(mode) {
   if (mode === "login") {
     $("loginTabBtn").classList.add("active");
     $("signupTabBtn").classList.remove("active");
-
     $("authNameInput").classList.add("hidden");
     $("authMainBtn").textContent = "Login";
   } else {
     $("signupTabBtn").classList.add("active");
     $("loginTabBtn").classList.remove("active");
-
     $("authNameInput").classList.remove("hidden");
     $("authMainBtn").textContent = "Create account";
   }
@@ -255,18 +171,11 @@ function switchAuthMode(mode) {
 
 async function handleAuth() {
   try {
-    const email =
-      $("authEmailInput").value.trim();
+    const email = $("authEmailInput").value.trim();
+    const password = $("authPasswordInput").value.trim();
+    const fullName = $("authNameInput").value.trim();
 
-    const password =
-      $("authPasswordInput").value.trim();
-
-    const fullName =
-      $("authNameInput").value.trim();
-
-    if (!email || !password) {
-      return;
-    }
+    if (!email || !password) return;
 
     if (window.__authMode === "signup") {
       const { data, error } =
@@ -281,16 +190,12 @@ async function handleAuth() {
         });
 
       if (error) {
-        showAnswer(
-          "Auth",
-          "Signup failed",
-          error.message
-        );
-
+        showAnswer("Auth", "Signup failed", error.message);
         return;
       }
 
       currentUser = data.user;
+      currentSession = data.session || null;
     } else {
       const { data, error } =
         await supabaseClient.auth.signInWithPassword({
@@ -299,12 +204,7 @@ async function handleAuth() {
         });
 
       if (error) {
-        showAnswer(
-          "Auth",
-          "Login failed",
-          error.message
-        );
-
+        showAnswer("Auth", "Login failed", error.message);
         return;
       }
 
@@ -328,12 +228,12 @@ async function handleAuth() {
 
   } catch (error) {
     console.error(error);
+    showAnswer("Auth", "Auth error", "Something went wrong.");
   }
 }
 
 async function forgotPassword() {
-  const email =
-    $("authEmailInput").value.trim();
+  const email = $("authEmailInput").value.trim();
 
   if (!email) return;
 
@@ -341,12 +241,7 @@ async function forgotPassword() {
     await supabaseClient.auth.resetPasswordForEmail(email);
 
   if (error) {
-    showAnswer(
-      "Auth",
-      "Reset failed",
-      error.message
-    );
-
+    showAnswer("Auth", "Reset failed", error.message);
     return;
   }
 
@@ -357,8 +252,30 @@ async function forgotPassword() {
   );
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+function showPlanDashboard() {
+  const isPro =
+    localStorage.getItem("instant_answer_pro") === "true";
 
+  const usage = getUsage();
+  const remaining = Math.max(0, DAILY_LIMIT - usage);
+
+  showAnswer(
+    "Plan",
+    "Subscription dashboard",
+    `Current plan: ${isPro ? "Pro" : "Free"}
+
+Usage today: ${isPro ? "Unlimited" : `${usage}/${DAILY_LIMIT}`}
+Remaining today: ${isPro ? "Unlimited" : remaining}
+
+Upgrade:
+Press the Upgrade button to open Stripe checkout.
+
+Note:
+Cancel/manage subscription is disabled for now.`
+  );
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   switchAuthMode("login");
 
   $("loginTabBtn").onclick = () =>
@@ -375,8 +292,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("upgradeBtn").onclick =
     upgradeToPro;
 
-  $("managePlanBtn").onclick =
-    openBillingPortal;
+  if ($("managePlanBtn")) {
+    $("managePlanBtn").onclick =
+      showPlanDashboard;
+  }
 
   $("logoutBtn").onclick =
     logout;
@@ -402,5 +321,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       "Instant Answer ready",
       "Your AI workspace is loaded."
     );
+  } else {
+    $("mainApp").classList.add("hidden");
+    $("authScreen").classList.remove("hidden");
   }
 });
