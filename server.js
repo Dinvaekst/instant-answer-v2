@@ -41,7 +41,118 @@ const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
   : null;
 
-const proDevices = new Set();
+async function getUserFromToken(req) {
+  try {
+    const authHeader = req.headers.authorization || "";
+    if (!authHeader.startsWith("Bearer ")) return null;
+
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token || !supabase) return null;
+
+    const {
+      data: { user },
+      error
+    } = await supabase.auth.getUser(token);
+
+    if (error || !user) return null;
+    return user;
+  } catch (error) {
+    console.error("Token verify error:", error);
+    return null;
+  }
+}
+
+async function getUserPlan(userId) {
+  if (!supabase || !userId) return "free";
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("plan")
+    .eq("id", userId)
+    .single();
+
+  if (error) return "free";
+  return data?.plan || "free";
+}
+
+async function getOrCreateMemoryProfile(user) {
+  if (!supabase || !user?.id) return null;
+
+  const { data: existing } = await supabase
+    .from("memory_profiles")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  if (existing) return existing;
+
+  const fullName =
+    user.user_metadata?.full_name ||
+    user.email?.split("@")?.[0] ||
+    "User";
+
+  const { data: created, error } = await supabase
+    .from("memory_profiles")
+    .insert({
+      user_id: user.id,
+      full_name: fullName,
+      favorite_language: "English",
+      favorite_mode: "quick",
+      answer_style: "clear and simple",
+      subjects: [],
+      notes: ""
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Create memory error:", error.message);
+    return null;
+  }
+
+  return created;
+}
+
+function buildMemoryText(memory) {
+  if (!memory) return "No saved memory yet.";
+
+  return `
+Name: ${memory.full_name || "Unknown"}
+Favorite language: ${memory.favorite_language || "English"}
+Favorite mode: ${memory.favorite_mode || "quick"}
+Answer style: ${memory.answer_style || "clear and simple"}
+Subjects: ${(memory.subjects || []).join(", ") || "None yet"}
+Notes: ${memory.notes || "No notes yet"}
+`;
+}
+
+async function saveChatHistory({ userId, mode, question, answer, provider }) {
+  if (!supabase || !userId) return;
+
+  const { error } = await supabase.from("chat_history").insert({
+    user_id: userId,
+    mode,
+    question: String(question || "").slice(0, 12000),
+    answer: String(answer || "").slice(0, 20000),
+    provider: provider || "unknown"
+  });
+
+  if (error) {
+    console.error("Save chat history error:", error.message);
+  }
+}
+
+async function updateMemoryUsage({ userId, mode }) {
+  if (!supabase || !userId || !mode) return;
+
+  await supabase
+    .from("memory_profiles")
+    .update({
+      favorite_mode: mode,
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", userId);
+}
 
 function cleanText(text = "") {
   return String(text || "").replace(/\s+/g, " ").trim();
@@ -50,10 +161,6 @@ function cleanText(text = "") {
 function limitText(text = "", max = 14000) {
   const value = String(text || "");
   return value.length > max ? value.slice(0, max) + "\n\n[Content shortened]" : value;
-}
-
-function isProUser(deviceId) {
-  return Boolean(deviceId && proDevices.has(deviceId));
 }
 
 function detectMode(mode = "") {
@@ -75,6 +182,8 @@ function buildSystemPrompt(mode) {
   const base = `
 You are Instant Answer AI.
 Always answer in the same language as the user.
+Use the saved user memory to personalize the answer naturally.
+Never mention memory unless it helps the user.
 Never say you need more context if the user already provided context.
 Be useful, direct and clear.
 Do not invent facts.
@@ -99,7 +208,6 @@ Rules:
 - Give a detailed answer.
 - Use clear structure.
 - Include examples when useful.
-- Use bullets or short sections.
 - Explain the "why", not only the answer.
 `;
   }
@@ -110,9 +218,6 @@ MODE: STUDY
 Rules:
 - Explain like a good teacher.
 - Use simple words.
-- If the user asks for notes, make clean study notes.
-- If the user asks for quiz, make quiz questions and answers.
-- If the user asks for explanation, explain step by step.
 - Make the student understand the topic.
 `;
   }
@@ -122,9 +227,7 @@ Rules:
 MODE: PAGE
 Rules:
 - Use the provided webpage/page text.
-- If the page text exists, answer based on it.
-- Summarize, explain or answer the user's question from the page.
-- Do not ask for a link if page content is already included.
+- Answer based on the page.
 `;
   }
 
@@ -133,11 +236,7 @@ Rules:
 MODE: YOUTUBE
 Rules:
 - Use the provided YouTube page content.
-- Summarize the video/page clearly.
-- If transcript is missing, use visible title/description/page text.
 - Do not invent exact timestamps.
-- If notes requested, make study notes.
-- If quiz requested, create quiz questions and answers.
 `;
   }
 
@@ -147,7 +246,6 @@ MODE: FILES
 Rules:
 - Analyze uploaded PDFs/images clearly.
 - If text is missing, say what is missing.
-- Make summaries, notes or answers depending on request.
 `;
   }
 
@@ -193,12 +291,7 @@ async function callGemini({ prompt, systemPrompt, mode, isPro }) {
   });
 
   const result = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: `${systemPrompt}\n\n${prompt}` }]
-      }
-    ],
+    contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${prompt}` }] }],
     generationConfig: {
       temperature: mode === "quick" ? 0.15 : 0.3,
       maxOutputTokens: getMaxTokens(mode, isPro)
@@ -249,10 +342,7 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
   });
 
   const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error?.message || "OpenRouter failed");
-  }
+  if (!response.ok) throw new Error(data?.error?.message || "OpenRouter failed");
 
   return data.choices?.[0]?.message?.content?.trim();
 }
@@ -263,13 +353,7 @@ async function routeAI({ prompt, systemPrompt, mode, isPro }) {
   const route =
     mode === "quick"
       ? ["groq", "gemini", "openrouter", "openai"]
-      : mode === "deep"
-        ? ["openai", "gemini", "openrouter", "groq"]
-        : mode === "study"
-          ? ["openai", "gemini", "openrouter", "groq"]
-          : mode === "page" || mode === "youtube"
-            ? ["openai", "gemini", "openrouter", "groq"]
-            : ["openai", "gemini", "openrouter", "groq"];
+      : ["openai", "gemini", "openrouter", "groq"];
 
   for (const provider of route) {
     try {
@@ -280,9 +364,7 @@ async function routeAI({ prompt, systemPrompt, mode, isPro }) {
       if (provider === "openai") answer = await callOpenAI({ prompt, systemPrompt, mode, isPro });
       if (provider === "openrouter") answer = await callOpenRouter({ prompt, systemPrompt, mode, isPro });
 
-      if (answer && answer.length > 2) {
-        return { answer, provider };
-      }
+      if (answer && answer.length > 2) return { answer, provider };
     } catch (error) {
       errors.push(`${provider}: ${error.message}`);
       console.error(`${provider} failed:`, error.message);
@@ -296,7 +378,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "2.1-fixed-modes-upgrade",
+    version: "2.6-memory",
     modes: ["quick", "deep", "study", "page", "youtube", "files"],
     providers: {
       openai: Boolean(process.env.OPENAI_API_KEY),
@@ -309,36 +391,48 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/check-pro", (req, res) => {
-  const { deviceId } = req.body || {};
-  res.json({ pro: isProUser(deviceId) });
+app.post("/check-pro", async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const plan = await getUserPlan(user.id);
+
+    res.json({
+      pro: plan === "pro",
+      plan
+    });
+  } catch (error) {
+    console.error("Check pro error:", error);
+    res.status(500).json({ error: "Check failed" });
+  }
 });
 
 app.post("/create-checkout", async (req, res) => {
   try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
     const { deviceId } = req.body || {};
 
     if (process.env.STRIPE_PAYMENT_LINK) {
-      return res.json({
-        url: process.env.STRIPE_PAYMENT_LINK
-      });
+      return res.json({ url: process.env.STRIPE_PAYMENT_LINK });
     }
 
     if (!stripe || !process.env.STRIPE_PRICE_ID) {
-      return res.status(500).json({
-        error: "Stripe is not configured"
-      });
+      return res.status(500).json({ error: "Stripe is not configured" });
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      client_reference_id: deviceId || "unknown_device",
-      line_items: [
-        {
-          price: process.env.STRIPE_PRICE_ID,
-          quantity: 1
-        }
-      ],
+      client_reference_id: user.id,
+      customer_email: user.email,
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      metadata: {
+        userId: user.id,
+        email: user.email || "",
+        deviceId: deviceId || ""
+      },
       success_url: `${process.env.BACKEND_URL || "https://instant-answer-backend-clean.onrender.com"}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: process.env.CANCEL_URL || "https://google.com"
     });
@@ -352,7 +446,16 @@ app.post("/create-checkout", async (req, res) => {
 
 app.post("/ask", async (req, res) => {
   try {
-    const { input, mode = "quick", deviceId } = req.body || {};
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        answer: "Login required."
+      });
+    }
+
+    const { input, mode = "quick" } = req.body || {};
 
     if (!input || typeof input !== "string") {
       return res.status(400).json({
@@ -362,13 +465,17 @@ app.post("/ask", async (req, res) => {
     }
 
     const finalMode = detectMode(mode);
-    const isPro = isProUser(deviceId);
+    const plan = await getUserPlan(user.id);
+    const isPro = plan === "pro";
+
+    const memory = await getOrCreateMemoryProfile(user);
+    const memoryText = buildMemoryText(memory);
 
     const systemPrompt = buildSystemPrompt(finalMode);
     const prompt = buildUserPrompt({
       input,
       mode: finalMode,
-      memoryText: ""
+      memoryText
     });
 
     const ai = await routeAI({
@@ -378,10 +485,24 @@ app.post("/ask", async (req, res) => {
       isPro
     });
 
+    await saveChatHistory({
+      userId: user.id,
+      mode: finalMode,
+      question: input,
+      answer: ai.answer,
+      provider: ai.provider
+    });
+
+    await updateMemoryUsage({
+      userId: user.id,
+      mode: finalMode
+    });
+
     res.json({
       answer: ai.answer,
       provider: ai.provider,
       pro: isPro,
+      plan,
       mode: finalMode,
       sources: []
     });
@@ -396,7 +517,12 @@ app.post("/ask", async (req, res) => {
 
 app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
   try {
-    const { deviceId, tool = "summary", question = "" } = req.body || {};
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized", answer: "Login required." });
+    }
+
+    const { tool = "summary", question = "" } = req.body || {};
 
     if (!req.file) {
       return res.status(400).json({
@@ -405,17 +531,13 @@ app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
       });
     }
 
-    const isPro = isProUser(deviceId);
+    const plan = await getUserPlan(user.id);
+    const isPro = plan === "pro";
 
     let parsed;
-
-    if (typeof pdfParse.default === "function") {
-      parsed = await pdfParse.default(req.file.buffer);
-    } else if (typeof pdfParse === "function") {
-      parsed = await pdfParse(req.file.buffer);
-    } else {
-      parsed = await pdfParse.pdf(req.file.buffer);
-    }
+    if (typeof pdfParse.default === "function") parsed = await pdfParse.default(req.file.buffer);
+    else if (typeof pdfParse === "function") parsed = await pdfParse(req.file.buffer);
+    else parsed = await pdfParse.pdf(req.file.buffer);
 
     const pdfText = cleanText(parsed.text || "");
 
@@ -426,10 +548,16 @@ app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
       });
     }
 
+    const memory = await getOrCreateMemoryProfile(user);
+    const memoryText = buildMemoryText(memory);
+
     const mode = "files";
     const systemPrompt = buildSystemPrompt(mode);
 
-    const prompt = `
+    const prompt = buildUserPrompt({
+      mode,
+      memoryText,
+      input: `
 File type: PDF
 Tool: ${tool}
 
@@ -438,7 +566,8 @@ ${question || "Analyze this PDF."}
 
 PDF text:
 ${limitText(pdfText, isPro ? 26000 : 14000)}
-`;
+`
+    });
 
     const ai = await routeAI({
       prompt,
@@ -447,10 +576,21 @@ ${limitText(pdfText, isPro ? 26000 : 14000)}
       isPro
     });
 
+    await saveChatHistory({
+      userId: user.id,
+      mode,
+      question: question || `PDF: ${req.file.originalname}`,
+      answer: ai.answer,
+      provider: ai.provider
+    });
+
+    await updateMemoryUsage({ userId: user.id, mode });
+
     res.json({
       answer: ai.answer,
       provider: ai.provider,
       pro: isPro,
+      plan,
       fileName: req.file.originalname,
       pages: parsed.numpages || null,
       tool
@@ -466,7 +606,12 @@ ${limitText(pdfText, isPro ? 26000 : 14000)}
 
 app.post("/ask-image", upload.single("image"), async (req, res) => {
   try {
-    const { deviceId, question = "" } = req.body || {};
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized", answer: "Login required." });
+    }
+
+    const { question = "" } = req.body || {};
 
     if (!req.file) {
       return res.status(400).json({
@@ -475,7 +620,8 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
       });
     }
 
-    const isPro = isProUser(deviceId);
+    const plan = await getUserPlan(user.id);
+    const isPro = plan === "pro";
     const mimeType = req.file.mimetype || "image/png";
     const base64 = req.file.buffer.toString("base64");
 
@@ -486,6 +632,9 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
       });
     }
 
+    const memory = await getOrCreateMemoryProfile(user);
+    const memoryText = buildMemoryText(memory);
+
     const completion = await openai.chat.completions.create({
       model: isPro ? "gpt-4o" : "gpt-4o-mini",
       temperature: 0.2,
@@ -494,20 +643,15 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
         {
           role: "system",
           content:
-            "You are Instant Answer Vision. Analyze the image clearly. Read visible text. Answer in the user's language."
+            `You are Instant Answer Vision. Analyze the image clearly. Read visible text. Answer in the user's language.\n\nSaved user memory:\n${memoryText}`
         },
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: question || "Analyze this image."
-            },
+            { type: "text", text: question || "Analyze this image." },
             {
               type: "image_url",
-              image_url: {
-                url: `data:${mimeType};base64,${base64}`
-              }
+              image_url: { url: `data:${mimeType};base64,${base64}` }
             }
           ]
         }
@@ -518,10 +662,21 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
       completion.choices?.[0]?.message?.content?.trim() ||
       "Jeg kunne ikke analysere billedet.";
 
+    await saveChatHistory({
+      userId: user.id,
+      mode: "files",
+      question: question || `Image: ${req.file.originalname}`,
+      answer,
+      provider: "openai-vision"
+    });
+
+    await updateMemoryUsage({ userId: user.id, mode: "files" });
+
     res.json({
       answer,
       provider: "openai-vision",
       pro: isPro,
+      plan,
       fileName: req.file.originalname
     });
   } catch (error) {
@@ -541,9 +696,20 @@ app.get("/success", async (req, res) => {
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const deviceId = session.client_reference_id;
+    const userId = session.client_reference_id;
 
-    if (deviceId) proDevices.add(deviceId);
+    if (userId && supabase) {
+      await supabase
+        .from("profiles")
+        .update({
+          plan: "pro",
+          stripe_customer_id:
+            typeof session.customer === "string"
+              ? session.customer
+              : session.customer?.id || null
+        })
+        .eq("id", userId);
+    }
 
     res.send(`
       <html>
