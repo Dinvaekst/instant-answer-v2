@@ -894,18 +894,23 @@ ${page.text}
 
 function buildPrompt(userMessage = "") {
   if (activeMode === "quick") {
-    return `
+  return `
 Mode: Quick
-Give a fast, clear answer.
-Use simple words.
-Be direct.
-Maximum 6 sentences.
+
+IMPORTANT RULES:
+- Always answer directly.
+- Never ask for more information unless absolutely necessary.
+- If the user asks "what is this page about", summarize immediately.
+- Sound confident and useful.
+- Do not act confused.
+- Give the actual answer first.
+- Use short but smart explanations.
+- No filler text.
 
 User:
 ${userMessage}
 `;
-  }
-
+}
   if (activeMode === "deep") {
     return `
 Mode: Deep
