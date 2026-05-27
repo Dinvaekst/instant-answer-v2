@@ -4,6 +4,8 @@ const CHECK_PRO_URL = `${BACKEND_URL}/check-pro`;
 const ASK_PDF_URL = `${BACKEND_URL}/ask-pdf`;
 const ASK_IMAGE_URL = `${BACKEND_URL}/ask-image`;
 const CHECKOUT_URL = `${BACKEND_URL}/create-checkout`;
+const HISTORY_URL = `${BACKEND_URL}/history`;
+const MEMORY_URL = `${BACKEND_URL}/memory`;
 const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
 
 const SUPABASE_URL = "https://aegnvyicwvgqveftryge.supabase.co";
@@ -35,6 +37,8 @@ let currentSession = null;
 let authMode = "login";
 
 let historyItems = JSON.parse(localStorage.getItem("ia_history") || "[]");
+let cloudHistory = [];
+let userMemory = null;
 
 function $(id) {
   return document.getElementById(id);
@@ -201,6 +205,8 @@ function showMainApp(user, session = null) {
 function showAuthScreen() {
   currentUser = null;
   currentSession = null;
+  userMemory = null;
+  cloudHistory = [];
 
   $("mainApp").classList.add("hidden");
   $("authScreen").classList.remove("hidden");
@@ -243,7 +249,9 @@ async function handleAuth() {
       if (data?.session?.user) {
         showMainApp(data.session.user, data.session);
         setMode("quick");
-        checkProStatus();
+        await checkProStatus();
+        await loadMemoryProfile(true);
+        await loadCloudHistory();
         return;
       }
 
@@ -263,7 +271,9 @@ async function handleAuth() {
 
     showMainApp(data.user, data.session);
     setMode("quick");
-    checkProStatus();
+    await checkProStatus();
+    await loadMemoryProfile(true);
+    await loadCloudHistory();
   } catch (error) {
     console.error(error);
     showAuthMessage("Authentication failed", "error");
@@ -307,6 +317,77 @@ async function getAccessToken() {
   return session?.access_token || "";
 }
 
+async function loadMemoryProfile(showWelcome = false) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return;
+
+    const response = await fetch(MEMORY_URL, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.memory) return;
+
+    userMemory = data.memory;
+
+    const name =
+      userMemory.full_name ||
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.email?.split("@")[0] ||
+      "User";
+
+    if ($("userStatus")) {
+      $("userStatus").textContent = name;
+    }
+
+    if (showWelcome) {
+      showAnswer(
+        "Welcome back",
+        `Welcome back ${name}`,
+        `Your AI memory is ready.
+
+Favorite mode: ${userMemory.favorite_mode || "quick"}
+Favorite language: ${userMemory.favorite_language || "English"}
+Answer style: ${userMemory.answer_style || "clear and simple"}
+
+Ask anything or continue from your recent chats.`
+      );
+    }
+  } catch (error) {
+    console.error("Memory load failed:", error);
+  }
+}
+
+async function loadCloudHistory() {
+  try {
+    const token = await getAccessToken();
+    if (!token) return;
+
+    const response = await fetch(HISTORY_URL, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    cloudHistory = Array.isArray(data.history) ? data.history : [];
+  } catch (error) {
+    console.error("History load failed:", error);
+  }
+}
+
+async function refreshPersonalData(showWelcome = false) {
+  await loadMemoryProfile(showWelcome);
+  await loadCloudHistory();
+}
+
 async function initAuth() {
   const {
     data: { session }
@@ -315,14 +396,17 @@ async function initAuth() {
   if (session?.user) {
     showMainApp(session.user, session);
     setMode("quick");
-    checkProStatus();
+    await checkProStatus();
+    await refreshPersonalData(true);
   } else {
     showAuthScreen();
   }
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     if (session?.user) {
       showMainApp(session.user, session);
+      await checkProStatus();
+      await refreshPersonalData(false);
     } else {
       showAuthScreen();
     }
@@ -341,21 +425,42 @@ function saveHistory(mode, question, answer) {
   localStorage.setItem("ia_history", JSON.stringify(historyItems));
 }
 
-function showHistory() {
-  if (!historyItems.length) {
+async function showHistory() {
+  if (!currentUser) {
+    showAuthScreen();
+    showAuthMessage("Login first to see history", "error");
+    return;
+  }
+
+  showLoading("Loading history");
+  await loadCloudHistory();
+
+  const allHistory = [
+    ...cloudHistory.map(item => ({
+      mode: item.mode,
+      question: item.question,
+      answer: item.answer,
+      date: item.created_at
+    })),
+    ...historyItems
+  ];
+
+  if (!allHistory.length) {
     showAnswer("History", "No history yet", "You have no saved answers yet.");
     return;
   }
 
   $("result").innerHTML = `
     <div class="answer-box">
-      <div class="answer-label">History</div>
-      <div class="answer-title">Recent answers</div>
-      ${historyItems.map(item => `
+      <div class="answer-label">Cloud History</div>
+      <div class="answer-title">Recent chats</div>
+      ${allHistory.slice(0, 30).map(item => `
         <div class="history-item">
-          <strong>${escapeHTML(item.mode.toUpperCase())}</strong><br>
-          ${escapeHTML(item.question)}<br><br>
-          ${formatAnswer(item.answer)}
+          <strong>${escapeHTML(String(item.mode || "").toUpperCase())}</strong><br><br>
+          ${escapeHTML(item.question || "")}<br><br>
+          ${formatAnswer(item.answer || "")}
+          <br><br>
+          <small>${item.date ? new Date(item.date).toLocaleString() : ""}</small>
         </div>
       `).join("")}
     </div>
@@ -655,6 +760,8 @@ async function askBackend(input, mode) {
   increaseUsage();
   updateProStatus();
 
+  await loadCloudHistory();
+
   return data;
 }
 
@@ -706,6 +813,8 @@ async function askPdfBackend(question = "") {
   increaseUsage();
   updateProStatus();
 
+  await loadCloudHistory();
+
   return data;
 }
 
@@ -756,6 +865,8 @@ async function askImageBackend(question = "") {
 
   increaseUsage();
   updateProStatus();
+
+  await loadCloudHistory();
 
   return data;
 }
@@ -1132,8 +1243,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   updateProStatus();
   setPageStatus("Ready");
-
-  
 
   await initAuth();
 });
