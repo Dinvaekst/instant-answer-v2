@@ -137,9 +137,7 @@ async function saveChatHistory({ userId, mode, question, answer, provider }) {
     provider: provider || "unknown"
   });
 
-  if (error) {
-    console.error("Save chat history error:", error.message);
-  }
+  if (error) console.error("Save chat history error:", error.message);
 }
 
 async function updateMemoryUsage({ userId, mode }) {
@@ -160,7 +158,9 @@ function cleanText(text = "") {
 
 function limitText(text = "", max = 14000) {
   const value = String(text || "");
-  return value.length > max ? value.slice(0, max) + "\n\n[Content shortened]" : value;
+  return value.length > max
+    ? value.slice(0, max) + "\n\n[Content shortened]"
+    : value;
 }
 
 function detectMode(mode = "") {
@@ -329,9 +329,10 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
       "X-Title": "Instant Answer"
     },
     body: JSON.stringify({
-      model: mode === "quick"
-        ? "meta-llama/llama-3.1-8b-instruct:free"
-        : "google/gemini-flash-1.5",
+      model:
+        mode === "quick"
+          ? "meta-llama/llama-3.1-8b-instruct:free"
+          : "google/gemini-flash-1.5",
       temperature: mode === "quick" ? 0.15 : 0.3,
       max_tokens: getMaxTokens(mode, isPro),
       messages: [
@@ -349,11 +350,9 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
 
 async function routeAI({ prompt, systemPrompt, mode, isPro }) {
   const errors = [];
-
-  const route =
-    mode === "quick"
-      ? ["groq", "gemini", "openrouter", "openai"]
-      : ["openai", "gemini", "openrouter", "groq"];
+  const route = mode === "quick"
+    ? ["groq", "gemini", "openrouter", "openai"]
+    : ["openai", "gemini", "openrouter", "groq"];
 
   for (const provider of route) {
     try {
@@ -378,7 +377,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "2.6-memory",
+    version: "2.6-memory-complete",
     modes: ["quick", "deep", "study", "page", "youtube", "files"],
     providers: {
       openai: Boolean(process.env.OPENAI_API_KEY),
@@ -405,6 +404,116 @@ app.post("/check-pro", async (req, res) => {
   } catch (error) {
     console.error("Check pro error:", error);
     res.status(500).json({ error: "Check failed" });
+  }
+});
+
+app.get("/memory", async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const memory = await getOrCreateMemoryProfile(user);
+
+    res.json({ memory });
+  } catch (error) {
+    console.error("Memory error:", error);
+    res.status(500).json({ error: "Could not fetch memory" });
+  }
+});
+
+app.patch("/memory", async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const allowed = {};
+    const {
+      full_name,
+      favorite_language,
+      favorite_mode,
+      answer_style,
+      subjects,
+      notes
+    } = req.body || {};
+
+    if (typeof full_name === "string") allowed.full_name = full_name.slice(0, 120);
+    if (typeof favorite_language === "string") allowed.favorite_language = favorite_language.slice(0, 60);
+    if (typeof favorite_mode === "string") allowed.favorite_mode = favorite_mode.slice(0, 40);
+    if (typeof answer_style === "string") allowed.answer_style = answer_style.slice(0, 200);
+    if (Array.isArray(subjects)) allowed.subjects = subjects.map(String).slice(0, 12);
+    if (typeof notes === "string") allowed.notes = notes.slice(0, 1000);
+
+    allowed.updated_at = new Date().toISOString();
+
+    await getOrCreateMemoryProfile(user);
+
+    const { data, error } = await supabase
+      .from("memory_profiles")
+      .update(allowed)
+      .eq("user_id", user.id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.json({ memory: data });
+  } catch (error) {
+    console.error("Update memory error:", error);
+    res.status(500).json({ error: "Could not update memory" });
+  }
+});
+
+app.get("/history", async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const limit = Math.min(Number(req.query.limit || 30), 50);
+
+    const { data, error } = await supabase
+      .from("chat_history")
+      .select("id, mode, question, answer, provider, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    res.json({ history: data || [] });
+  } catch (error) {
+    console.error("History error:", error);
+    res.status(500).json({ error: "Could not fetch history" });
+  }
+});
+
+app.delete("/history", async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { error } = await supabase
+      .from("chat_history")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Delete history error:", error);
+    res.status(500).json({ error: "Could not delete history" });
   }
 });
 
