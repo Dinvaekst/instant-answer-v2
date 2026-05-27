@@ -6,17 +6,14 @@
 <title>Instant Answer</title>
 
 <style>
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
-}
+*{margin:0;padding:0;box-sizing:border-box}
 
 :root{
   --border:rgba(255,255,255,.1);
   --text:#ffffff;
   --muted:#b8b8b8;
   --green:#b7ff4a;
+  --danger:#ff6b6b;
 }
 
 body{
@@ -43,6 +40,130 @@ body{
   border:1px solid var(--border);
 }
 
+button{
+  border:none;
+  cursor:pointer;
+  transition:.18s ease;
+  font-family:Inter, Arial, sans-serif;
+}
+
+.hidden{display:none!important}
+
+.auth-screen{
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:14px;
+}
+
+.auth-brand{
+  font-size:15px;
+  font-weight:950;
+}
+
+.auth-brand span{color:var(--green)}
+
+.auth-title{
+  font-size:34px;
+  line-height:.95;
+  letter-spacing:-2px;
+  font-weight:950;
+}
+
+.auth-title span{color:var(--green)}
+
+.auth-subtitle{
+  font-size:12px;
+  line-height:1.45;
+  color:var(--muted);
+}
+
+.auth-box{
+  padding:14px;
+  border-radius:22px;
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+}
+
+.auth-tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+
+.auth-tab{
+  padding:10px;
+  border-radius:15px;
+  font-size:12px;
+  font-weight:950;
+  color:var(--muted);
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
+}
+
+.auth-tab.active{
+  color:#070707;
+  background:var(--green);
+}
+
+.auth-input{
+  width:100%;
+  outline:none;
+  border:none;
+  padding:12px;
+  border-radius:16px;
+  font-size:13px;
+  color:white;
+  background:rgba(255,255,255,.065);
+  border:1px solid var(--border);
+}
+
+.auth-input::placeholder{color:#777}
+
+.auth-primary{
+  width:100%;
+  padding:12px;
+  border-radius:17px;
+  font-size:13px;
+  font-weight:950;
+  color:#070707;
+  background:var(--green);
+}
+
+.auth-secondary{
+  width:100%;
+  padding:11px;
+  border-radius:17px;
+  font-size:12px;
+  font-weight:950;
+  color:white;
+  background:rgba(255,255,255,.07);
+  border:1px solid var(--border);
+}
+
+.auth-link{
+  color:var(--green);
+  background:transparent;
+  font-size:12px;
+  font-weight:800;
+  text-align:left;
+  padding:4px 0;
+}
+
+.auth-message{
+  min-height:18px;
+  font-size:11.5px;
+  color:var(--muted);
+  line-height:1.35;
+}
+
+.auth-message.error{color:var(--danger)}
+.auth-message.success{color:var(--green)}
+
 .top{
   display:flex;
   justify-content:space-between;
@@ -55,20 +176,11 @@ body{
   font-weight:950;
 }
 
-.brand span{
-  color:var(--green);
-}
+.brand span{color:var(--green)}
 
 .top-actions{
   display:flex;
   gap:7px;
-}
-
-button{
-  border:none;
-  cursor:pointer;
-  transition:.18s ease;
-  font-family:Inter, Arial, sans-serif;
 }
 
 .small-btn,
@@ -90,9 +202,7 @@ button{
   background:var(--green);
 }
 
-.hero{
-  flex-shrink:0;
-}
+.hero{flex-shrink:0}
 
 .hero h1{
   font-size:34px;
@@ -101,9 +211,7 @@ button{
   font-weight:950;
 }
 
-.hero h1 span{
-  color:var(--green);
-}
+.hero h1 span{color:var(--green)}
 
 .subtitle{
   margin-top:7px;
@@ -133,6 +241,16 @@ button{
   text-overflow:ellipsis;
   white-space:nowrap;
   color:var(--muted);
+  background:rgba(255,255,255,.07);
+  border:1px solid var(--border);
+}
+
+#userStatus{
+  max-width:150px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:white;
   background:rgba(255,255,255,.07);
   border:1px solid var(--border);
 }
@@ -295,9 +413,7 @@ textarea{
   border:1px solid var(--border);
 }
 
-textarea::placeholder{
-  color:#777;
-}
+textarea::placeholder{color:#777}
 
 .action-row{
   display:grid;
@@ -355,10 +471,7 @@ textarea::placeholder{
   border:1px solid var(--border);
 }
 
-::-webkit-scrollbar{
-  width:6px;
-}
-
+::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-thumb{
   border-radius:999px;
   background:rgba(255,255,255,.2);
@@ -369,94 +482,127 @@ textarea::placeholder{
 <body>
 <div class="app">
 
-  <div class="top">
-    <div class="brand">Instant <span>Answer</span></div>
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-brand">Instant <span>Answer</span></div>
 
-    <div class="top-actions">
-      <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade</button>
-      <button id="historyBtn" class="small-btn" type="button">History</button>
-      <button id="clearBtn" class="small-btn" type="button">Clear</button>
-    </div>
-  </div>
-
-  <div class="hero">
-    <h1>Fast AI<br><span>for work</span></h1>
-    <div class="subtitle">
-      Quick answers, study notes, page reading, YouTube summaries and file analysis.
-    </div>
-
-    <div class="status-row">
-      <div id="proStatus" class="status-pill">Free</div>
-      <div id="pageStatus" class="status-pill">Ready</div>
-    </div>
-  </div>
-
-  <div class="mode-tabs">
-    <button id="quickModeBtn" class="mode-tab active" type="button">Quick</button>
-    <button id="deepModeBtn" class="mode-tab" type="button">Deep</button>
-    <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
-    <button id="pageModeBtn" class="mode-tab" type="button">Page</button>
-    <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
-    <button id="filesModeBtn" class="mode-tab" type="button">Files</button>
-  </div>
-
-  <div class="panel">
-
-    <div class="panel-head">
-      <div id="panelTitle" class="panel-title">Quick Mode</div>
-      <div id="panelSubtitle" class="panel-subtitle">Fast answers with simple wording.</div>
-    </div>
-
-    <div id="result">
-      <div class="loading">Ready</div>
-    </div>
-
-    <div id="studyTools" class="mode-tools">
-      <button id="studyExplainBtn" class="tool-btn active" type="button">Explain</button>
-      <button id="studyNotesBtn" class="tool-btn" type="button">Notes</button>
-      <button id="studyQuizBtn" class="tool-btn" type="button">Quiz</button>
-    </div>
-
-    <div id="pageTools" class="mode-tools">
-      <button id="pageReadBtn" class="tool-btn active" type="button">Page</button>
-      <button id="pageSelectedBtn" class="tool-btn" type="button">Selected</button>
-      <button id="pageSummaryBtn" class="tool-btn" type="button">Summary</button>
-    </div>
-
-    <div id="youtubeTools" class="mode-tools">
-      <button id="ytSummaryBtn" class="tool-btn active" type="button">Summary</button>
-      <button id="ytNotesBtn" class="tool-btn" type="button">Notes</button>
-      <button id="ytQuizBtn" class="tool-btn" type="button">Quiz</button>
-    </div>
-
-    <div id="filesTools" class="mode-tools">
-      <button id="filePdfBtn" class="tool-btn active" type="button">PDF</button>
-      <button id="fileImageBtn" class="tool-btn" type="button">Image</button>
-      <button id="fileNotesBtn" class="tool-btn" type="button">Notes</button>
-    </div>
-
-    <div id="pdfUploadBox" class="file-box">
-      <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
-      <div id="pdfFileName">No PDF selected</div>
-    </div>
-
-    <div id="imageUploadBox" class="file-box">
-      <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
-      <div id="imageFileName">No image selected</div>
-    </div>
-
-    <div class="composer">
-      <textarea id="mainInput" placeholder="Ask anything..."></textarea>
-
-      <div class="action-row">
-        <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
-        <button id="readPageBtn" class="secondary-btn" type="button">Read page</button>
+    <div>
+      <div class="auth-title">Your AI<br><span>workspace</span></div>
+      <div class="auth-subtitle">
+        Login to use Instant Answer, save your history and keep your AI memory across devices.
       </div>
     </div>
 
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button id="loginTabBtn" class="auth-tab active" type="button">Login</button>
+        <button id="signupTabBtn" class="auth-tab" type="button">Sign up</button>
+      </div>
+
+      <input id="authNameInput" class="auth-input hidden" type="text" placeholder="Full name" />
+      <input id="authEmailInput" class="auth-input" type="email" placeholder="Email address" />
+      <input id="authPasswordInput" class="auth-input" type="password" placeholder="Password" />
+
+      <button id="authMainBtn" class="auth-primary" type="button">Login</button>
+      <button id="forgotPasswordBtn" class="auth-link" type="button">Forgot password?</button>
+
+      <div id="authMessage" class="auth-message"></div>
+    </div>
+  </div>
+
+  <div id="mainApp" class="hidden" style="height:100%;display:flex;flex-direction:column;gap:10px;min-height:0;">
+
+    <div class="top">
+      <div class="brand">Instant <span>Answer</span></div>
+
+      <div class="top-actions">
+        <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade</button>
+        <button id="historyBtn" class="small-btn" type="button">History</button>
+        <button id="clearBtn" class="small-btn" type="button">Clear</button>
+        <button id="logoutBtn" class="small-btn" type="button">Logout</button>
+      </div>
+    </div>
+
+    <div class="hero">
+      <h1>Fast AI<br><span>for work</span></h1>
+      <div class="subtitle">
+        Quick answers, study notes, page reading, YouTube summaries and file analysis.
+      </div>
+
+      <div class="status-row">
+        <div id="proStatus" class="status-pill">Free</div>
+        <div id="userStatus" class="status-pill">User</div>
+        <div id="pageStatus" class="status-pill">Ready</div>
+      </div>
+    </div>
+
+    <div class="mode-tabs">
+      <button id="quickModeBtn" class="mode-tab active" type="button">Quick</button>
+      <button id="deepModeBtn" class="mode-tab" type="button">Deep</button>
+      <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
+      <button id="pageModeBtn" class="mode-tab" type="button">Page</button>
+      <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
+      <button id="filesModeBtn" class="mode-tab" type="button">Files</button>
+    </div>
+
+    <div class="panel">
+
+      <div class="panel-head">
+        <div id="panelTitle" class="panel-title">Quick Mode</div>
+        <div id="panelSubtitle" class="panel-subtitle">Fast answers with simple wording.</div>
+      </div>
+
+      <div id="result">
+        <div class="loading">Ready</div>
+      </div>
+
+      <div id="studyTools" class="mode-tools">
+        <button id="studyExplainBtn" class="tool-btn active" type="button">Explain</button>
+        <button id="studyNotesBtn" class="tool-btn" type="button">Notes</button>
+        <button id="studyQuizBtn" class="tool-btn" type="button">Quiz</button>
+      </div>
+
+      <div id="pageTools" class="mode-tools">
+        <button id="pageReadBtn" class="tool-btn active" type="button">Page</button>
+        <button id="pageSelectedBtn" class="tool-btn" type="button">Selected</button>
+        <button id="pageSummaryBtn" class="tool-btn" type="button">Summary</button>
+      </div>
+
+      <div id="youtubeTools" class="mode-tools">
+        <button id="ytSummaryBtn" class="tool-btn active" type="button">Summary</button>
+        <button id="ytNotesBtn" class="tool-btn" type="button">Notes</button>
+        <button id="ytQuizBtn" class="tool-btn" type="button">Quiz</button>
+      </div>
+
+      <div id="filesTools" class="mode-tools">
+        <button id="filePdfBtn" class="tool-btn active" type="button">PDF</button>
+        <button id="fileImageBtn" class="tool-btn" type="button">Image</button>
+        <button id="fileNotesBtn" class="tool-btn" type="button">Notes</button>
+      </div>
+
+      <div id="pdfUploadBox" class="file-box">
+        <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
+        <div id="pdfFileName">No PDF selected</div>
+      </div>
+
+      <div id="imageUploadBox" class="file-box">
+        <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
+        <div id="imageFileName">No image selected</div>
+      </div>
+
+      <div class="composer">
+        <textarea id="mainInput" placeholder="Ask anything..."></textarea>
+
+        <div class="action-row">
+          <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
+          <button id="readPageBtn" class="secondary-btn" type="button">Read page</button>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 
+<script src="supabase.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

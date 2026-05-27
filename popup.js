@@ -4,8 +4,15 @@ const CHECK_PRO_URL = `${BACKEND_URL}/check-pro`;
 const ASK_PDF_URL = `${BACKEND_URL}/ask-pdf`;
 const ASK_IMAGE_URL = `${BACKEND_URL}/ask-image`;
 const CHECKOUT_URL = `${BACKEND_URL}/create-checkout`;
+const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
+
+const SUPABASE_URL = "https://aegnvyicwvgqveftryge.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlZ252eWljd3ZncXZlZnRyeWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTY5MzEsImV4cCI6MjA5NDMzMjkzMX0.YEdy7kzftyK3so29V6sgtj8xJDISdIdXRl5PfqRl464";
 
 const DAILY_LIMIT = 5;
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let activeMode = "quick";
 let activeStudyTool = "explain";
@@ -22,6 +29,10 @@ let uploadedPdfFile = null;
 let uploadedPdfName = "";
 let uploadedImageFile = null;
 let uploadedImageName = "";
+
+let currentUser = null;
+let currentSession = null;
+let authMode = "login";
 
 let historyItems = JSON.parse(localStorage.getItem("ia_history") || "[]");
 
@@ -69,7 +80,8 @@ function getDeviceId() {
 }
 
 function getTodayKey() {
-  return `instant_answer_usage_${new Date().toISOString().split("T")[0]}`;
+  const userPart = currentUser?.id || "guest";
+  return `instant_answer_usage_${userPart}_${new Date().toISOString().split("T")[0]}`;
 }
 
 function getUsage() {
@@ -105,14 +117,7 @@ function setPageStatus(text) {
 function showLoading(text = "Thinking") {
   $("result").innerHTML = `
     <div class="loading">
-      <div>
-        <div>${escapeHTML(text)}</div>
-        <div class="typing-dots">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      </div>
+      <div>${escapeHTML(text)}</div>
     </div>
   `;
 }
@@ -147,6 +152,181 @@ function showAnswer(label, title, answer, sources = []) {
 
 function showReady(text = "Ready") {
   $("result").innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
+}
+
+function showAuthMessage(message, type = "") {
+  const el = $("authMessage");
+  if (!el) return;
+
+  el.textContent = message;
+  el.className = `auth-message ${type}`;
+}
+
+function switchAuthMode(mode) {
+  authMode = mode;
+
+  $("loginTabBtn").classList.remove("active");
+  $("signupTabBtn").classList.remove("active");
+
+  if (mode === "login") {
+    $("loginTabBtn").classList.add("active");
+    $("authMainBtn").textContent = "Login";
+    $("authNameInput").classList.add("hidden");
+    $("forgotPasswordBtn").classList.remove("hidden");
+  } else {
+    $("signupTabBtn").classList.add("active");
+    $("authMainBtn").textContent = "Create account";
+    $("authNameInput").classList.remove("hidden");
+    $("forgotPasswordBtn").classList.add("hidden");
+  }
+
+  showAuthMessage("");
+}
+
+function showMainApp(user, session = null) {
+  currentUser = user;
+  currentSession = session;
+
+  $("authScreen").classList.add("hidden");
+  $("mainApp").classList.remove("hidden");
+
+  if ($("userStatus")) {
+    $("userStatus").textContent = user?.email || "User";
+  }
+
+  updateProStatus();
+  setPageStatus("Ready");
+}
+
+function showAuthScreen() {
+  currentUser = null;
+  currentSession = null;
+
+  $("mainApp").classList.add("hidden");
+  $("authScreen").classList.remove("hidden");
+}
+
+async function handleAuth() {
+  try {
+    const email = $("authEmailInput").value.trim();
+    const password = $("authPasswordInput").value.trim();
+    const fullName = $("authNameInput").value.trim();
+
+    if (!email || !password) {
+      showAuthMessage("Missing email or password", "error");
+      return;
+    }
+
+    if (password.length < 6) {
+      showAuthMessage("Password must be at least 6 characters", "error");
+      return;
+    }
+
+    showAuthMessage("Loading...");
+
+    if (authMode === "signup") {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName
+          }
+        }
+      });
+
+      if (error) {
+        showAuthMessage(error.message, "error");
+        return;
+      }
+
+      if (data?.session?.user) {
+        showMainApp(data.session.user, data.session);
+        setMode("quick");
+        checkProStatus();
+        return;
+      }
+
+      showAuthMessage("Account created. Check your email.", "success");
+      return;
+    }
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      showAuthMessage(error.message, "error");
+      return;
+    }
+
+    showMainApp(data.user, data.session);
+    setMode("quick");
+    checkProStatus();
+  } catch (error) {
+    console.error(error);
+    showAuthMessage("Authentication failed", "error");
+  }
+}
+
+async function forgotPassword() {
+  const email = $("authEmailInput").value.trim();
+
+  if (!email) {
+    showAuthMessage("Enter your email first", "error");
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  showAuthMessage("Password reset email sent", "success");
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+
+  localStorage.removeItem("instant_answer_pro");
+  showAuthScreen();
+  showAuthMessage("Logged out", "success");
+}
+
+async function getAccessToken() {
+  const {
+    data: { session }
+  } = await supabaseClient.auth.getSession();
+
+  currentSession = session || null;
+  currentUser = session?.user || null;
+
+  return session?.access_token || "";
+}
+
+async function initAuth() {
+  const {
+    data: { session }
+  } = await supabaseClient.auth.getSession();
+
+  if (session?.user) {
+    showMainApp(session.user, session);
+    setMode("quick");
+    checkProStatus();
+  } else {
+    showAuthScreen();
+  }
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      showMainApp(session.user, session);
+    } else {
+      showAuthScreen();
+    }
+  });
 }
 
 function saveHistory(mode, question, answer) {
@@ -345,16 +525,27 @@ function setFileTool(tool) {
 
 async function checkProStatus() {
   try {
+    const token = await getAccessToken();
+
     const response = await fetch(CHECK_PRO_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId: getDeviceId() })
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : ""
+      },
+      body: JSON.stringify({
+        deviceId: getDeviceId(),
+        userId: currentUser?.id || null,
+        email: currentUser?.email || null
+      })
     });
 
     const data = await response.json();
 
-    if (data.pro) {
+    if (data.pro || data.plan === "pro") {
       localStorage.setItem("instant_answer_pro", "true");
+    } else {
+      localStorage.removeItem("instant_answer_pro");
     }
   } catch (error) {
     console.error("Pro check failed:", error);
@@ -365,24 +556,41 @@ async function checkProStatus() {
 
 async function upgradeToPro() {
   try {
+    const token = await getAccessToken();
+
+    if (!token) {
+      showAuthScreen();
+      showAuthMessage("Login first to upgrade", "error");
+      return;
+    }
+
     showLoading("Opening upgrade");
 
     const response = await fetch(CHECKOUT_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
-        deviceId: getDeviceId()
+        deviceId: getDeviceId(),
+        userId: currentUser?.id || null,
+        email: currentUser?.email || null
       })
     });
 
     const data = await response.json();
 
     if (data.url) {
-      chrome.tabs.create({
-        url: data.url
-      });
+      chrome.tabs.create({ url: data.url });
+
+      showAnswer(
+        "Upgrade",
+        "Stripe checkout opened",
+        "Complete payment in the new tab. After payment, return to Instant Answer."
+      );
+    } else if (PRO_LINK) {
+      chrome.tabs.create({ url: PRO_LINK });
 
       showAnswer(
         "Upgrade",
@@ -390,24 +598,30 @@ async function upgradeToPro() {
         "Complete payment in the new tab. After payment, return to Instant Answer."
       );
     } else {
-      showAnswer(
-        "Upgrade",
-        "Upgrade unavailable",
-        data.error || "Could not open Stripe checkout."
-      );
+      showAnswer("Upgrade", "Upgrade unavailable", data.error || "Could not open Stripe checkout.");
     }
   } catch (error) {
     console.error(error);
 
-    showAnswer(
-      "Upgrade",
-      "Upgrade failed",
-      "Could not connect to checkout server."
-    );
+    if (PRO_LINK) {
+      chrome.tabs.create({ url: PRO_LINK });
+      showAnswer("Upgrade", "Stripe checkout opened", "Complete payment in the new tab.");
+      return;
+    }
+
+    showAnswer("Upgrade", "Upgrade failed", "Could not connect to checkout server.");
   }
 }
 
 async function askBackend(input, mode) {
+  const token = await getAccessToken();
+
+  if (!token) {
+    showAuthScreen();
+    showAuthMessage("Login first to use Instant Answer", "error");
+    return null;
+  }
+
   if (hasReachedLimit()) {
     showAnswer(
       "Limit",
@@ -419,11 +633,16 @@ async function askBackend(input, mode) {
 
   const response = await fetch(ASK_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
     body: JSON.stringify({
       input,
       mode,
-      deviceId: getDeviceId()
+      deviceId: getDeviceId(),
+      userId: currentUser?.id || null,
+      email: currentUser?.email || null
     })
   });
 
@@ -440,6 +659,14 @@ async function askBackend(input, mode) {
 }
 
 async function askPdfBackend(question = "") {
+  const token = await getAccessToken();
+
+  if (!token) {
+    showAuthScreen();
+    showAuthMessage("Login first to use files", "error");
+    return null;
+  }
+
   if (!uploadedPdfFile) {
     showAnswer("Files", "No PDF selected", "Upload a PDF first.");
     return null;
@@ -457,11 +684,16 @@ async function askPdfBackend(question = "") {
   const formData = new FormData();
   formData.append("pdf", uploadedPdfFile);
   formData.append("deviceId", getDeviceId());
+  formData.append("userId", currentUser?.id || "");
+  formData.append("email", currentUser?.email || "");
   formData.append("tool", activeFileTool === "notes" ? "notes" : "summary");
   formData.append("question", question || "");
 
   const response = await fetch(ASK_PDF_URL, {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
     body: formData
   });
 
@@ -478,6 +710,14 @@ async function askPdfBackend(question = "") {
 }
 
 async function askImageBackend(question = "") {
+  const token = await getAccessToken();
+
+  if (!token) {
+    showAuthScreen();
+    showAuthMessage("Login first to use images", "error");
+    return null;
+  }
+
   if (!uploadedImageFile) {
     showAnswer("Files", "No image selected", "Upload an image first.");
     return null;
@@ -495,11 +735,16 @@ async function askImageBackend(question = "") {
   const formData = new FormData();
   formData.append("image", uploadedImageFile);
   formData.append("deviceId", getDeviceId());
+  formData.append("userId", currentUser?.id || "");
+  formData.append("email", currentUser?.email || "");
   formData.append("tool", "image");
   formData.append("question", question || "");
 
   const response = await fetch(ASK_IMAGE_URL, {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
     body: formData
   });
 
@@ -669,6 +914,12 @@ ${userMessage || "Summarize this YouTube video."}
 async function runMainAction() {
   if (isGenerating) return;
 
+  if (!currentUser) {
+    showAuthScreen();
+    showAuthMessage("Login first to use Instant Answer", "error");
+    return;
+  }
+
   const userMessage = $("mainInput").value.trim();
 
   if (!userMessage && !["page", "youtube", "files"].includes(activeMode)) return;
@@ -733,6 +984,12 @@ async function runMainAction() {
 
 async function handleReadPage() {
   if (isGenerating) return;
+
+  if (!currentUser) {
+    showAuthScreen();
+    showAuthMessage("Login first to read pages", "error");
+    return;
+  }
 
   isGenerating = true;
   showLoading("Reading page");
@@ -813,9 +1070,15 @@ function handleImageUpload(event) {
   );
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  updateProStatus();
-  setPageStatus("Ready");
+document.addEventListener("DOMContentLoaded", async () => {
+  switchAuthMode("login");
+  showAuthScreen();
+
+  $("loginTabBtn").onclick = () => switchAuthMode("login");
+  $("signupTabBtn").onclick = () => switchAuthMode("signup");
+  $("authMainBtn").onclick = handleAuth;
+  $("forgotPasswordBtn").onclick = forgotPassword;
+  $("logoutBtn").onclick = logout;
 
   $("quickModeBtn").onclick = () => setMode("quick");
   $("deepModeBtn").onclick = () => setMode("deep");
@@ -860,6 +1123,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  setMode("quick");
-  checkProStatus();
+  $("authPasswordInput").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleAuth();
+    }
+  });
+
+  updateProStatus();
+  setPageStatus("Ready");
+
+  
+
+  await initAuth();
 });

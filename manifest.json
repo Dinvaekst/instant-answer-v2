@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Instant Answer",
-  "version": "2.0",
-  "description": "Smart AI browser assistant with chat, math, PDF, YouTube and page understanding",
+  "version": "2.5",
+  "description": "Smart AI browser assistant with login, memory, chat, PDF, YouTube and page understanding",
 
   "action": {
     "default_popup": "popup.html"
@@ -11,11 +11,15 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "storage",
+    "identity"
   ],
 
   "host_permissions": [
     "https://*/*",
-    "http://*/*"
+    "http://*/*",
+    "https://aegnvyicwvgqveftryge.supabase.co/*",
+    "https://instant-answer-backend-clean.onrender.com/*"
   ]
 }
