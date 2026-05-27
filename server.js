@@ -12,7 +12,6 @@ import Groq from "groq-sdk";
 dotenv.config();
 
 const app = express();
-
 app.use(cors());
 app.use(express.json({ limit: "8mb" }));
 
@@ -50,9 +49,7 @@ function cleanText(text = "") {
 
 function limitText(text = "", max = 14000) {
   const value = String(text || "");
-  return value.length > max
-    ? value.slice(0, max) + "\n\n[Content shortened]"
-    : value;
+  return value.length > max ? value.slice(0, max) + "\n\n[Content shortened]" : value;
 }
 
 function isProUser(deviceId) {
@@ -65,8 +62,8 @@ function detectMode(mode = "") {
 }
 
 function getMaxTokens(mode, isPro) {
-  if (mode === "quick") return isPro ? 900 : 500;
-  if (mode === "deep") return isPro ? 3500 : 1600;
+  if (mode === "quick") return isPro ? 600 : 350;
+  if (mode === "deep") return isPro ? 3200 : 1500;
   if (mode === "study") return isPro ? 3000 : 1500;
   if (mode === "page") return isPro ? 3000 : 1500;
   if (mode === "youtube") return isPro ? 3000 : 1500;
@@ -75,156 +72,101 @@ function getMaxTokens(mode, isPro) {
 }
 
 function buildSystemPrompt(mode) {
+  const base = `
+You are Instant Answer AI.
+Always answer in the same language as the user.
+Never say you need more context if the user already provided context.
+Be useful, direct and clear.
+Do not invent facts.
+`;
+
   if (mode === "quick") {
-    return "You are Instant Answer Quick Mode. Give fast, clear, useful answers. Use simple wording. Be direct.";
+    return `${base}
+MODE: QUICK
+Rules:
+- Give a short answer.
+- 3-6 sentences max unless the user asks for more.
+- Simple wording.
+- No long introductions.
+- Answer directly.
+`;
   }
 
   if (mode === "deep") {
-    return "You are Instant Answer Deep Mode. Give stronger, more complete answers with structure, examples and practical steps.";
+    return `${base}
+MODE: DEEP
+Rules:
+- Give a detailed answer.
+- Use clear structure.
+- Include examples when useful.
+- Use bullets or short sections.
+- Explain the "why", not only the answer.
+`;
   }
 
   if (mode === "study") {
-    return "You are Instant Answer Study Mode. Explain like a good teacher. Make notes, quizzes or simple explanations depending on the request.";
+    return `${base}
+MODE: STUDY
+Rules:
+- Explain like a good teacher.
+- Use simple words.
+- If the user asks for notes, make clean study notes.
+- If the user asks for quiz, make quiz questions and answers.
+- If the user asks for explanation, explain step by step.
+- Make the student understand the topic.
+`;
   }
 
   if (mode === "page") {
-    return "You are Instant Answer Page Mode. Use the provided page content. Summarize, explain and answer based only on the page when possible.";
+    return `${base}
+MODE: PAGE
+Rules:
+- Use the provided webpage/page text.
+- If the page text exists, answer based on it.
+- Summarize, explain or answer the user's question from the page.
+- Do not ask for a link if page content is already included.
+`;
   }
 
   if (mode === "youtube") {
-    return "You are Instant Answer YouTube Mode. Use the provided YouTube page content. Make summaries, notes and quizzes. Do not invent timestamps.";
+    return `${base}
+MODE: YOUTUBE
+Rules:
+- Use the provided YouTube page content.
+- Summarize the video/page clearly.
+- If transcript is missing, use visible title/description/page text.
+- Do not invent exact timestamps.
+- If notes requested, make study notes.
+- If quiz requested, create quiz questions and answers.
+`;
   }
 
   if (mode === "files") {
-    return "You are Instant Answer Files Mode. Analyze PDFs and images clearly. Be honest if text is missing or unclear.";
+    return `${base}
+MODE: FILES
+Rules:
+- Analyze uploaded PDFs/images clearly.
+- If text is missing, say what is missing.
+- Make summaries, notes or answers depending on request.
+`;
   }
 
-  return "You are Instant Answer. Be clear, useful and reliable.";
+  return `${base}
+MODE: GENERAL
+Be clear, useful and reliable.
+`;
 }
 
 function buildUserPrompt({ input, mode, memoryText = "" }) {
   return `
-Mode:
-${mode}
+Current mode: ${mode}
 
 Saved user memory:
 ${memoryText || "No saved memory."}
 
-Rules:
-- Answer in the same language as the user.
-- Be clear and practical.
-- Do not invent facts.
-- If context is provided, use it.
-- If the user asks for school help, explain simply.
-
-User input:
+User request and/or provided context:
 ${limitText(input, 26000)}
 `;
-}
-
-async function getAuthUser(req) {
-  if (!supabase) return null;
-
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.replace("Bearer ", "").trim();
-
-  if (!token) return null;
-
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return null;
-
-  return data.user;
-}
-
-async function ensureProfile(user) {
-  if (!supabase || !user?.id) return null;
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .upsert({
-      id: user.id,
-      email: user.email,
-      updated_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Profile error:", error.message);
-    return null;
-  }
-
-  return data;
-}
-
-async function getUserMemory(userId) {
-  if (!supabase || !userId) return "";
-
-  const { data, error } = await supabase
-    .from("memories")
-    .select("content")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  if (error || !data) return "";
-
-  return data.map(item => `- ${item.content}`).join("\n");
-}
-
-async function saveMemoryIfNeeded(userId, input = "") {
-  if (!supabase || !userId) return;
-
-  const text = cleanText(input);
-  const lower = text.toLowerCase();
-
-  const shouldRemember =
-    lower.includes("remember that") ||
-    lower.includes("husk at") ||
-    lower.includes("husk det") ||
-    lower.includes("gem det") ||
-    lower.includes("save this");
-
-  if (!shouldRemember || text.length < 8) return;
-
-  await supabase.from("memories").insert({
-    user_id: userId,
-    content: text.slice(0, 1000)
-  });
-}
-
-async function saveChatMessage(userId, mode, question, answer) {
-  if (!supabase || !userId) return;
-
-  const { data: chat, error: chatError } = await supabase
-    .from("chats")
-    .insert({
-      user_id: userId,
-      title: cleanText(question).slice(0, 80) || "New chat",
-      mode
-    })
-    .select()
-    .single();
-
-  if (chatError || !chat) {
-    console.error("Chat save error:", chatError?.message);
-    return;
-  }
-
-  await supabase.from("messages").insert([
-    {
-      chat_id: chat.id,
-      user_id: userId,
-      role: "user",
-      content: question
-    },
-    {
-      chat_id: chat.id,
-      user_id: userId,
-      role: "assistant",
-      content: answer
-    }
-  ]);
 }
 
 async function callGroq({ prompt, systemPrompt, mode, isPro }) {
@@ -232,7 +174,7 @@ async function callGroq({ prompt, systemPrompt, mode, isPro }) {
 
   const completion = await groq.chat.completions.create({
     model: "llama-3.1-8b-instant",
-    temperature: mode === "quick" ? 0.2 : 0.35,
+    temperature: mode === "quick" ? 0.15 : 0.3,
     max_tokens: getMaxTokens(mode, isPro),
     messages: [
       { role: "system", content: systemPrompt },
@@ -258,7 +200,7 @@ async function callGemini({ prompt, systemPrompt, mode, isPro }) {
       }
     ],
     generationConfig: {
-      temperature: mode === "quick" ? 0.2 : 0.35,
+      temperature: mode === "quick" ? 0.15 : 0.3,
       maxOutputTokens: getMaxTokens(mode, isPro)
     }
   });
@@ -271,7 +213,7 @@ async function callOpenAI({ prompt, systemPrompt, mode, isPro }) {
 
   const completion = await openai.chat.completions.create({
     model: isPro ? "gpt-4o" : "gpt-4o-mini",
-    temperature: mode === "quick" ? 0.2 : 0.3,
+    temperature: mode === "quick" ? 0.15 : 0.25,
     max_tokens: getMaxTokens(mode, isPro),
     messages: [
       { role: "system", content: systemPrompt },
@@ -297,7 +239,7 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
       model: mode === "quick"
         ? "meta-llama/llama-3.1-8b-instruct:free"
         : "google/gemini-flash-1.5",
-      temperature: mode === "quick" ? 0.2 : 0.35,
+      temperature: mode === "quick" ? 0.15 : 0.3,
       max_tokens: getMaxTokens(mode, isPro),
       messages: [
         { role: "system", content: systemPrompt },
@@ -322,32 +264,21 @@ async function routeAI({ prompt, systemPrompt, mode, isPro }) {
     mode === "quick"
       ? ["groq", "gemini", "openrouter", "openai"]
       : mode === "deep"
-        ? ["gemini", "openai", "openrouter", "groq"]
+        ? ["openai", "gemini", "openrouter", "groq"]
         : mode === "study"
-          ? ["gemini", "openai", "openrouter", "groq"]
+          ? ["openai", "gemini", "openrouter", "groq"]
           : mode === "page" || mode === "youtube"
-            ? ["gemini", "openai", "openrouter", "groq"]
+            ? ["openai", "gemini", "openrouter", "groq"]
             : ["openai", "gemini", "openrouter", "groq"];
 
   for (const provider of route) {
     try {
       let answer = "";
 
-      if (provider === "groq") {
-        answer = await callGroq({ prompt, systemPrompt, mode, isPro });
-      }
-
-      if (provider === "gemini") {
-        answer = await callGemini({ prompt, systemPrompt, mode, isPro });
-      }
-
-      if (provider === "openai") {
-        answer = await callOpenAI({ prompt, systemPrompt, mode, isPro });
-      }
-
-      if (provider === "openrouter") {
-        answer = await callOpenRouter({ prompt, systemPrompt, mode, isPro });
-      }
+      if (provider === "groq") answer = await callGroq({ prompt, systemPrompt, mode, isPro });
+      if (provider === "gemini") answer = await callGemini({ prompt, systemPrompt, mode, isPro });
+      if (provider === "openai") answer = await callOpenAI({ prompt, systemPrompt, mode, isPro });
+      if (provider === "openrouter") answer = await callOpenRouter({ prompt, systemPrompt, mode, isPro });
 
       if (answer && answer.length > 2) {
         return { answer, provider };
@@ -365,13 +296,14 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "2.0-stable-modes-routing",
+    version: "2.1-fixed-modes-upgrade",
     modes: ["quick", "deep", "study", "page", "youtube", "files"],
     providers: {
       openai: Boolean(process.env.OPENAI_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
       groq: Boolean(process.env.GROQ_API_KEY),
       openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+      stripe: Boolean(process.env.STRIPE_SECRET_KEY),
       supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
     }
   });
@@ -382,91 +314,40 @@ app.post("/check-pro", (req, res) => {
   res.json({ pro: isProUser(deviceId) });
 });
 
-app.get("/me", async (req, res) => {
-  const user = await getAuthUser(req);
+app.post("/create-checkout", async (req, res) => {
+  try {
+    const { deviceId } = req.body || {};
 
-  if (!user) return res.status(401).json({ error: "Not logged in" });
+    if (process.env.STRIPE_PAYMENT_LINK) {
+      return res.json({
+        url: process.env.STRIPE_PAYMENT_LINK
+      });
+    }
 
-  const profile = await ensureProfile(user);
+    if (!stripe || !process.env.STRIPE_PRICE_ID) {
+      return res.status(500).json({
+        error: "Stripe is not configured"
+      });
+    }
 
-  res.json({ user, profile });
-});
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      client_reference_id: deviceId || "unknown_device",
+      line_items: [
+        {
+          price: process.env.STRIPE_PRICE_ID,
+          quantity: 1
+        }
+      ],
+      success_url: `${process.env.BACKEND_URL || "https://instant-answer-backend-clean.onrender.com"}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: process.env.CANCEL_URL || "https://google.com"
+    });
 
-app.get("/memory", async (req, res) => {
-  if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
-
-  const user = await getAuthUser(req);
-  if (!user) return res.status(401).json({ error: "Not logged in" });
-
-  const { data, error } = await supabase
-    .from("memories")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json({ memories: data });
-});
-
-app.get("/chats", async (req, res) => {
-  if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
-
-  const user = await getAuthUser(req);
-  if (!user) return res.status(401).json({ error: "Not logged in" });
-
-  const { data, error } = await supabase
-    .from("chats")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json({ chats: data });
-});
-
-app.get("/preferences", async (req, res) => {
-  if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
-
-  const user = await getAuthUser(req);
-  if (!user) return res.status(401).json({ error: "Not logged in" });
-
-  const { data, error } = await supabase
-    .from("user_preferences")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json({ preferences: data });
-});
-
-app.post("/preferences", async (req, res) => {
-  if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
-
-  const user = await getAuthUser(req);
-  if (!user) return res.status(401).json({ error: "Not logged in" });
-
-  const { language, theme, tone } = req.body || {};
-
-  const { data, error } = await supabase
-    .from("user_preferences")
-    .upsert({
-      user_id: user.id,
-      language: language || "auto",
-      theme: theme || "dark",
-      tone: tone || "clear",
-      updated_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json({ preferences: data });
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error("Checkout error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post("/ask", async (req, res) => {
@@ -483,16 +364,11 @@ app.post("/ask", async (req, res) => {
     const finalMode = detectMode(mode);
     const isPro = isProUser(deviceId);
 
-    const user = await getAuthUser(req);
-    if (user) await ensureProfile(user);
-
-    const memoryText = user ? await getUserMemory(user.id) : "";
-
     const systemPrompt = buildSystemPrompt(finalMode);
     const prompt = buildUserPrompt({
       input,
       mode: finalMode,
-      memoryText
+      memoryText: ""
     });
 
     const ai = await routeAI({
@@ -502,22 +378,15 @@ app.post("/ask", async (req, res) => {
       isPro
     });
 
-    if (user) {
-      await saveMemoryIfNeeded(user.id, input);
-      await saveChatMessage(user.id, finalMode, input, ai.answer);
-    }
-
     res.json({
       answer: ai.answer,
       provider: ai.provider,
       pro: isPro,
       mode: finalMode,
-      loggedIn: Boolean(user),
       sources: []
     });
   } catch (error) {
     console.error("Ask error:", error);
-
     res.status(500).json({
       error: "Server error",
       answer: `Der skete en fejl i AI-serveren: ${error.message}`
@@ -588,7 +457,6 @@ ${limitText(pdfText, isPro ? 26000 : 14000)}
     });
   } catch (error) {
     console.error("PDF error:", error);
-
     res.status(500).json({
       error: "PDF server error",
       answer: `Der skete en fejl med PDF'en: ${error.message}`
@@ -658,7 +526,6 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
     });
   } catch (error) {
     console.error("Image error:", error);
-
     res.status(500).json({
       error: "Image server error",
       answer: `Der skete en fejl med billedanalysen: ${error.message}`
@@ -682,7 +549,7 @@ app.get("/success", async (req, res) => {
       <html>
         <body style="font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;background:#f6f6f6;">
           <div style="background:white;padding:28px;border-radius:16px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.1);">
-            <h1>Pro activated</h1>
+            <h1>Pro activated ✅</h1>
             <p>You can now go back to Instant Answer.</p>
           </div>
         </body>
