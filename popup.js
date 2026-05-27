@@ -3,6 +3,7 @@ const ASK_URL = `${BACKEND_URL}/ask`;
 const CHECK_PRO_URL = `${BACKEND_URL}/check-pro`;
 const ASK_PDF_URL = `${BACKEND_URL}/ask-pdf`;
 const ASK_IMAGE_URL = `${BACKEND_URL}/ask-image`;
+const CHECKOUT_URL = `${BACKEND_URL}/create-checkout`;
 
 const DAILY_LIMIT = 5;
 
@@ -53,10 +54,7 @@ function formatAnswer(text = "") {
 }
 
 function cleanText(text = "", limit = 14000) {
-  return String(text || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, limit);
+  return String(text || "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
 function getDeviceId() {
@@ -79,7 +77,9 @@ function getUsage() {
 }
 
 function increaseUsage() {
-  localStorage.setItem(getTodayKey(), String(getUsage() + 1));
+  if (localStorage.getItem("instant_answer_pro") !== "true") {
+    localStorage.setItem(getTodayKey(), String(getUsage() + 1));
+  }
 }
 
 function getRemainingUsage() {
@@ -186,9 +186,11 @@ function clearAll() {
   $("mainInput").value = "";
   historyItems = [];
   localStorage.removeItem("ia_history");
+
   currentPageText = "";
   currentPageTitle = "";
   currentPageUrl = "";
+
   uploadedPdfFile = null;
   uploadedPdfName = "";
   uploadedImageFile = null;
@@ -350,7 +352,10 @@ async function checkProStatus() {
     });
 
     const data = await response.json();
-    if (data.pro) localStorage.setItem("instant_answer_pro", "true");
+
+    if (data.pro) {
+      localStorage.setItem("instant_answer_pro", "true");
+    }
   } catch (error) {
     console.error("Pro check failed:", error);
   } finally {
@@ -358,9 +363,57 @@ async function checkProStatus() {
   }
 }
 
+async function upgradeToPro() {
+  try {
+    showLoading("Opening upgrade");
+
+    const response = await fetch(CHECKOUT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        deviceId: getDeviceId()
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.url) {
+      chrome.tabs.create({
+        url: data.url
+      });
+
+      showAnswer(
+        "Upgrade",
+        "Stripe checkout opened",
+        "Complete payment in the new tab. After payment, return to Instant Answer."
+      );
+    } else {
+      showAnswer(
+        "Upgrade",
+        "Upgrade unavailable",
+        data.error || "Could not open Stripe checkout."
+      );
+    }
+  } catch (error) {
+    console.error(error);
+
+    showAnswer(
+      "Upgrade",
+      "Upgrade failed",
+      "Could not connect to checkout server."
+    );
+  }
+}
+
 async function askBackend(input, mode) {
   if (hasReachedLimit()) {
-    showAnswer("Limit", "Free limit reached", "You have used your free answers today.");
+    showAnswer(
+      "Limit",
+      "Free limit reached",
+      "You have used your free answers today. Upgrade to Pro for more access."
+    );
     return null;
   }
 
@@ -393,7 +446,11 @@ async function askPdfBackend(question = "") {
   }
 
   if (hasReachedLimit()) {
-    showAnswer("Limit", "Free limit reached", "You have used your free answers today.");
+    showAnswer(
+      "Limit",
+      "Free limit reached",
+      "You have used your free answers today. Upgrade to Pro for more access."
+    );
     return null;
   }
 
@@ -427,7 +484,11 @@ async function askImageBackend(question = "") {
   }
 
   if (hasReachedLimit()) {
-    showAnswer("Limit", "Free limit reached", "You have used your free answers today.");
+    showAnswer(
+      "Limit",
+      "Free limit reached",
+      "You have used your free answers today. Upgrade to Pro for more access."
+    );
     return null;
   }
 
@@ -533,6 +594,7 @@ Mode: Quick
 Give a fast, clear answer.
 Use simple words.
 Be direct.
+Maximum 6 sentences.
 
 User:
 ${userMessage}
@@ -544,7 +606,7 @@ ${userMessage}
 Mode: Deep
 Give a stronger, more complete answer.
 Use structure, examples and practical steps.
-Do not be too long unless needed.
+Explain the reasoning clearly.
 
 User:
 ${userMessage}
@@ -620,8 +682,13 @@ async function runMainAction() {
     if (activeMode === "page" || activeMode === "youtube") {
       if (!currentPageText) {
         const loaded = await readCurrentPage();
+
         if (!loaded) {
-          showAnswer("Page", "Could not read page", "Open a normal webpage or YouTube video and try again.");
+          showAnswer(
+            "Page",
+            "Could not read page",
+            "Open a normal webpage or YouTube video and try again."
+          );
           return;
         }
       }
@@ -648,7 +715,12 @@ async function runMainAction() {
       "File Result";
 
     showAnswer(activeMode, title, data.answer, data.sources || []);
-    saveHistory(activeMode, userMessage || currentPageTitle || uploadedPdfName || uploadedImageName, data.answer);
+
+    saveHistory(
+      activeMode,
+      userMessage || currentPageTitle || uploadedPdfName || uploadedImageName,
+      data.answer
+    );
 
     $("mainInput").value = "";
   } catch (error) {
@@ -669,12 +741,21 @@ async function handleReadPage() {
     const loaded = await readCurrentPage();
 
     if (!loaded) {
-      showAnswer("Page", "Could not read page", "Open a normal webpage or YouTube video and try again.");
+      showAnswer(
+        "Page",
+        "Could not read page",
+        "Open a normal webpage or YouTube video and try again."
+      );
       return;
     }
 
     const label = activeMode === "youtube" ? "YouTube" : "Page";
-    showAnswer(label, "Page loaded", `Loaded: ${currentPageTitle}\n\nNow ask a question or press Send.`);
+
+    showAnswer(
+      label,
+      "Page loaded",
+      `Loaded: ${currentPageTitle}\n\nNow ask a question or press Send.`
+    );
   } catch (error) {
     showAnswer("Error", "Page error", error.message || "Could not read page.");
   } finally {
@@ -699,7 +780,11 @@ function handlePdfUpload(event) {
   uploadedPdfName = file.name;
 
   $("pdfFileName").textContent = `Selected: ${uploadedPdfName}`;
-  showAnswer("Files", "PDF selected", `Selected: ${uploadedPdfName}\n\nAsk a question or press Analyze file.`);
+  showAnswer(
+    "Files",
+    "PDF selected",
+    `Selected: ${uploadedPdfName}\n\nAsk a question or press Analyze file.`
+  );
 }
 
 function handleImageUpload(event) {
@@ -721,7 +806,11 @@ function handleImageUpload(event) {
   uploadedImageName = file.name;
 
   $("imageFileName").textContent = `Selected: ${uploadedImageName}`;
-  showAnswer("Files", "Image selected", `Selected: ${uploadedImageName}\n\nAsk a question or press Analyze file.`);
+  showAnswer(
+    "Files",
+    "Image selected",
+    `Selected: ${uploadedImageName}\n\nAsk a question or press Analyze file.`
+  );
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -759,6 +848,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("historyBtn").onclick = showHistory;
   $("clearBtn").onclick = clearAll;
+
+  if ($("upgradeBtn")) {
+    $("upgradeBtn").onclick = upgradeToPro;
+  }
 
   $("mainInput").addEventListener("keydown", event => {
     if (event.key === "Enter" && !event.shiftKey) {

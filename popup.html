@@ -13,18 +13,10 @@
 }
 
 :root{
-  --bg:#080808;
-  --card:#111111;
-  --card2:#171717;
-  --soft:#202020;
-  --border:rgba(255,255,255,.09);
+  --border:rgba(255,255,255,.1);
   --text:#ffffff;
-  --muted:#a3a3a3;
+  --muted:#b8b8b8;
   --green:#b7ff4a;
-  --green2:#71e000;
-  --blue:#7dd3fc;
-  --danger:#ff5c5c;
-  --shadow:0 24px 80px rgba(0,0,0,.55);
 }
 
 body{
@@ -33,36 +25,34 @@ body{
   overflow:hidden;
   font-family:Inter, Arial, sans-serif;
   color:var(--text);
-  background:
-    radial-gradient(circle at top left,rgba(183,255,74,.18),transparent 32%),
-    radial-gradient(circle at bottom right,rgba(125,211,252,.12),transparent 38%),
-    #050505;
-  padding:12px;
+  background:#050505;
+  padding:10px;
 }
 
 .app{
   height:100%;
   overflow:hidden;
-  border-radius:34px;
-  padding:16px;
+  border-radius:28px;
+  padding:14px;
   display:flex;
   flex-direction:column;
-  gap:12px;
-  background:linear-gradient(180deg,rgba(18,18,18,.92),rgba(7,7,7,.96));
+  gap:10px;
+  background:
+    radial-gradient(circle at top left,rgba(183,255,74,.16),transparent 30%),
+    linear-gradient(180deg,#111,#050505);
   border:1px solid var(--border);
-  box-shadow:var(--shadow);
 }
 
 .top{
   display:flex;
   justify-content:space-between;
   align-items:center;
+  flex-shrink:0;
 }
 
 .brand{
   font-size:14px;
   font-weight:950;
-  letter-spacing:-.2px;
 }
 
 .brand span{
@@ -81,24 +71,32 @@ button{
   font-family:Inter, Arial, sans-serif;
 }
 
-.small-btn{
+.small-btn,
+.upgrade-btn{
   padding:8px 10px;
   border-radius:14px;
   font-size:10px;
   font-weight:900;
+}
+
+.small-btn{
   color:white;
-  background:rgba(255,255,255,.06);
+  background:rgba(255,255,255,.07);
   border:1px solid var(--border);
 }
 
-.small-btn:hover{
-  background:rgba(255,255,255,.12);
-  transform:translateY(-1px);
+.upgrade-btn{
+  color:#070707;
+  background:var(--green);
+}
+
+.hero{
+  flex-shrink:0;
 }
 
 .hero h1{
-  font-size:38px;
-  line-height:.92;
+  font-size:34px;
+  line-height:.9;
   letter-spacing:-2px;
   font-weight:950;
 }
@@ -108,25 +106,24 @@ button{
 }
 
 .subtitle{
-  margin-top:9px;
-  font-size:12.5px;
-  line-height:1.45;
+  margin-top:7px;
+  font-size:12px;
+  line-height:1.35;
   color:var(--muted);
 }
 
 .status-row{
   display:flex;
   gap:7px;
-  margin-top:12px;
+  margin-top:9px;
 }
 
 .status-pill{
-  padding:9px 11px;
+  padding:8px 10px;
   border-radius:999px;
-  font-size:10.5px;
+  font-size:10px;
   font-weight:900;
-  white-space:nowrap;
-  color:#080808;
+  color:#070707;
   background:var(--green);
 }
 
@@ -134,37 +131,33 @@ button{
   flex:1;
   overflow:hidden;
   text-overflow:ellipsis;
+  white-space:nowrap;
   color:var(--muted);
-  background:rgba(255,255,255,.06);
+  background:rgba(255,255,255,.07);
   border:1px solid var(--border);
 }
 
 .mode-tabs{
   display:grid;
   grid-template-columns:repeat(6,1fr);
-  gap:6px;
+  gap:5px;
+  flex-shrink:0;
 }
 
 .mode-tab{
-  padding:10px 4px;
-  border-radius:15px;
-  font-size:9.3px;
+  padding:9px 3px;
+  border-radius:14px;
+  font-size:9px;
   font-weight:950;
   color:var(--muted);
-  background:rgba(255,255,255,.055);
+  background:rgba(255,255,255,.06);
   border:1px solid var(--border);
 }
 
-.mode-tab:hover{
-  color:white;
-  background:rgba(255,255,255,.11);
-}
-
 .mode-tab.active{
-  color:#080808;
+  color:#070707;
   background:var(--green);
   border-color:transparent;
-  box-shadow:0 12px 28px rgba(183,255,74,.22);
 }
 
 .panel{
@@ -173,41 +166,40 @@ button{
   overflow:hidden;
   display:flex;
   flex-direction:column;
-  border-radius:28px;
-  padding:15px;
+  border-radius:24px;
+  padding:13px;
   background:rgba(255,255,255,.055);
   border:1px solid var(--border);
 }
 
 .panel-head{
-  margin-bottom:12px;
+  flex-shrink:0;
+  margin-bottom:8px;
 }
 
 .panel-title{
-  font-size:21px;
+  font-size:20px;
   font-weight:950;
-  letter-spacing:-.5px;
 }
 
 .panel-subtitle{
-  margin-top:5px;
-  font-size:12px;
-  line-height:1.45;
+  margin-top:4px;
+  font-size:11.5px;
+  line-height:1.35;
   color:var(--muted);
 }
 
 #result{
   flex:1;
-  min-height:0;
+  min-height:95px;
   overflow-y:auto;
-  padding-right:4px;
-  margin-bottom:11px;
+  padding:12px;
+  margin-bottom:8px;
   font-size:13.5px;
   line-height:1.65;
-}
-
-.answer-box{
-  animation:fadeUp .22s ease;
+  border-radius:20px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.08);
 }
 
 .answer-label{
@@ -216,86 +208,52 @@ button{
   text-transform:uppercase;
   font-weight:950;
   color:var(--green);
-  margin-bottom:7px;
+  margin-bottom:6px;
 }
 
 .answer-title{
-  font-size:19px;
+  font-size:18px;
   font-weight:950;
-  margin-bottom:9px;
+  margin-bottom:8px;
 }
 
 .answer-content{
-  color:#e5e5e5;
-}
-
-.answer-content h1,
-.answer-content h2,
-.answer-content h3{
-  margin:12px 0 6px;
-  color:white;
-}
-
-.msg{
-  margin-bottom:11px;
-  padding:13px;
-  border-radius:20px;
-  animation:fadeUp .22s ease;
-}
-
-.user-msg{
-  margin-left:42px;
-  color:#080808;
-  background:var(--green);
-  box-shadow:0 12px 24px rgba(183,255,74,.18);
-}
-
-.ai-msg{
-  margin-right:18px;
-  color:#e5e5e5;
-  background:rgba(255,255,255,.06);
-  border:1px solid var(--border);
-}
-
-.msg-role{
-  font-size:9.5px;
-  font-weight:950;
-  opacity:.65;
-  margin-bottom:5px;
-  text-transform:uppercase;
-  letter-spacing:.8px;
+  color:#e8e8e8;
+  white-space:pre-wrap;
+  word-break:break-word;
 }
 
 .mode-tools{
   display:none;
   grid-template-columns:repeat(3,1fr);
   gap:7px;
-  margin-bottom:10px;
+  margin-bottom:8px;
+  flex-shrink:0;
 }
 
 .tool-btn{
-  padding:10px 6px;
+  padding:9px 5px;
   border-radius:14px;
   font-size:10px;
   font-weight:950;
   color:var(--muted);
-  background:rgba(255,255,255,.055);
+  background:rgba(255,255,255,.06);
   border:1px solid var(--border);
 }
 
 .tool-btn.active{
-  color:#080808;
+  color:#070707;
   background:var(--green);
-  border-color:transparent;
 }
 
 .file-box{
   display:none;
-  margin-bottom:10px;
-  padding:12px;
-  border-radius:18px;
+  margin-bottom:8px;
+  padding:10px;
+  border-radius:16px;
   background:rgba(255,255,255,.045);
   border:1px dashed rgba(255,255,255,.18);
+  flex-shrink:0;
 }
 
 .file-box input{
@@ -306,8 +264,8 @@ button{
 
 #pdfFileName,
 #imageFileName{
-  margin-top:8px;
-  font-size:11px;
+  margin-top:6px;
+  font-size:10.5px;
   color:var(--muted);
   overflow:hidden;
   white-space:nowrap;
@@ -315,24 +273,25 @@ button{
 }
 
 .composer{
+  flex-shrink:0;
   display:flex;
   flex-direction:column;
-  gap:9px;
+  gap:8px;
 }
 
 textarea{
   width:100%;
-  height:78px;
+  height:54px;
   resize:none;
   outline:none;
   border:none;
-  padding:13px;
-  border-radius:18px;
+  padding:12px;
+  border-radius:17px;
   font-size:13px;
-  line-height:1.45;
+  line-height:1.35;
   font-family:Inter, Arial, sans-serif;
   color:white;
-  background:rgba(255,255,255,.06);
+  background:rgba(255,255,255,.065);
   border:1px solid var(--border);
 }
 
@@ -340,64 +299,29 @@ textarea::placeholder{
   color:#777;
 }
 
-textarea:focus{
-  border-color:rgba(183,255,74,.55);
-  box-shadow:0 0 0 4px rgba(183,255,74,.1);
-}
-
 .action-row{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:9px;
+  gap:8px;
 }
 
 .primary-btn,
 .secondary-btn{
   width:100%;
-  padding:12px;
-  border-radius:18px;
+  padding:11px;
+  border-radius:17px;
   font-size:13px;
   font-weight:950;
 }
 
 .primary-btn{
-  color:#080808;
+  color:#070707;
   background:var(--green);
-  box-shadow:0 12px 28px rgba(183,255,74,.22);
-}
-
-.primary-btn:hover{
-  transform:translateY(-1px);
 }
 
 .secondary-btn{
   color:white;
-  background:rgba(255,255,255,.06);
-  border:1px solid var(--border);
-}
-
-.secondary-btn:hover{
-  background:rgba(255,255,255,.12);
-}
-
-.code-block{
-  background:#050505;
-  border:1px solid rgba(255,255,255,.1);
-  padding:12px;
-  border-radius:14px;
-  overflow:auto;
-  margin:10px 0;
-  font-size:12px;
-  line-height:1.6;
-  color:#e5e7eb;
-}
-
-.source-box,
-.history-item{
-  margin-top:10px;
-  padding:12px;
-  border-radius:18px;
-  background:rgba(255,255,255,.055);
+  background:rgba(255,255,255,.07);
   border:1px solid var(--border);
 }
 
@@ -411,27 +335,24 @@ textarea:focus{
   color:var(--muted);
 }
 
-.typing-dots{
-  display:flex;
-  justify-content:center;
-  gap:5px;
-  margin-top:12px;
+.code-block{
+  background:#050505;
+  border:1px solid rgba(255,255,255,.1);
+  padding:10px;
+  border-radius:12px;
+  overflow:auto;
+  margin:8px 0;
+  font-size:12px;
+  color:#e5e7eb;
 }
 
-.typing-dots span{
-  width:7px;
-  height:7px;
-  background:var(--green);
-  border-radius:50%;
-  animation:dotPulse 1.2s infinite ease-in-out;
-}
-
-.typing-dots span:nth-child(2){
-  animation-delay:.2s;
-}
-
-.typing-dots span:nth-child(3){
-  animation-delay:.4s;
+.source-box,
+.history-item{
+  margin-top:9px;
+  padding:10px;
+  border-radius:16px;
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--border);
 }
 
 ::-webkit-scrollbar{
@@ -440,29 +361,7 @@ textarea:focus{
 
 ::-webkit-scrollbar-thumb{
   border-radius:999px;
-  background:rgba(255,255,255,.18);
-}
-
-@keyframes fadeUp{
-  from{
-    opacity:0;
-    transform:translateY(8px);
-  }
-  to{
-    opacity:1;
-    transform:translateY(0);
-  }
-}
-
-@keyframes dotPulse{
-  0%,80%,100%{
-    opacity:.25;
-    transform:scale(.8);
-  }
-  40%{
-    opacity:1;
-    transform:scale(1.15);
-  }
+  background:rgba(255,255,255,.2);
 }
 </style>
 </head>
@@ -472,7 +371,9 @@ textarea:focus{
 
   <div class="top">
     <div class="brand">Instant <span>Answer</span></div>
+
     <div class="top-actions">
+      <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade</button>
       <button id="historyBtn" class="small-btn" type="button">History</button>
       <button id="clearBtn" class="small-btn" type="button">Clear</button>
     </div>
@@ -481,7 +382,7 @@ textarea:focus{
   <div class="hero">
     <h1>Fast AI<br><span>for work</span></h1>
     <div class="subtitle">
-      Quick answers, deep help, study notes, page reading, YouTube summaries and file analysis.
+      Quick answers, study notes, page reading, YouTube summaries and file analysis.
     </div>
 
     <div class="status-row">
