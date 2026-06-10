@@ -14,7 +14,8 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlZ252eWljd3ZncXZlZnRyeWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTY5MzEsImV4cCI6MjA5NDMzMjkzMX0.YEdy7kzftyK3so29V6sgtj8xJDISdIdXRl5PfqRl464";
 
 const DAILY_LIMIT = 5;
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let supabaseClient = null;
 
 let activeMode = "quick";
 let activeStudyTool = "explain";
@@ -46,7 +47,24 @@ function $(id) {
 
 function on(id, event, handler) {
   const el = $(id);
-  if (el) el.addEventListener(event, handler);
+  if (el) {
+    el.onclick = null;
+    el.addEventListener(event, handler);
+  }
+}
+
+function initSupabase() {
+  if (!window.supabase) {
+    showAuthMessage("Supabase failed to load. Check supabase.js file.", "error");
+    return false;
+  }
+
+  supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+
+  return true;
 }
 
 function escapeHTML(text = "") {
@@ -128,6 +146,8 @@ function showAuthMessage(message, type = "") {
 }
 
 async function getAccessToken() {
+  if (!supabaseClient) return "";
+
   const {
     data: { session }
   } = await supabaseClient.auth.getSession();
@@ -247,6 +267,11 @@ function showAuthScreen() {
 
 async function handleAuth() {
   try {
+    if (!supabaseClient) {
+      showAuthMessage("Auth system not loaded.", "error");
+      return;
+    }
+
     const email = $("authEmailInput")?.value.trim();
     const password = $("authPasswordInput")?.value.trim();
     const fullName = $("authNameInput")?.value.trim();
@@ -313,6 +338,11 @@ async function handleAuth() {
 }
 
 async function forgotPassword() {
+  if (!supabaseClient) {
+    showAuthMessage("Auth system not loaded.", "error");
+    return;
+  }
+
   const email = $("authEmailInput")?.value.trim();
 
   if (!email) {
@@ -331,7 +361,10 @@ async function forgotPassword() {
 }
 
 async function logout() {
-  await supabaseClient.auth.signOut();
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
+
   localStorage.removeItem("instant_answer_pro");
   showAuthScreen();
   showAuthMessage("Logged out", "success");
@@ -404,6 +437,11 @@ async function refreshPersonalData(showWelcome = false) {
 }
 
 async function initAuth() {
+  if (!supabaseClient) {
+    showAuthScreen();
+    return;
+  }
+
   const {
     data: { session }
   } = await supabaseClient.auth.getSession();
@@ -623,49 +661,25 @@ function setMode(mode) {
 
 function setStudyTool(tool) {
   activeStudyTool = tool;
-
-  const ids = {
-    explain: "studyExplainBtn",
-    notes: "studyNotesBtn",
-    quiz: "studyQuizBtn"
-  };
-
+  const ids = { explain: "studyExplainBtn", notes: "studyNotesBtn", quiz: "studyQuizBtn" };
   setActiveButton("#studyTools .tool-btn", ids[tool]);
 }
 
 function setPageTool(tool) {
   activePageTool = tool;
-
-  const ids = {
-    page: "pageReadBtn",
-    selected: "pageSelectedBtn",
-    summary: "pageSummaryBtn"
-  };
-
+  const ids = { page: "pageReadBtn", selected: "pageSelectedBtn", summary: "pageSummaryBtn" };
   setActiveButton("#pageTools .tool-btn", ids[tool]);
 }
 
 function setYoutubeTool(tool) {
   activeYoutubeTool = tool;
-
-  const ids = {
-    summary: "ytSummaryBtn",
-    notes: "ytNotesBtn",
-    quiz: "ytQuizBtn"
-  };
-
+  const ids = { summary: "ytSummaryBtn", notes: "ytNotesBtn", quiz: "ytQuizBtn" };
   setActiveButton("#youtubeTools .tool-btn", ids[tool]);
 }
 
 function setFileTool(tool) {
   activeFileTool = tool;
-
-  const ids = {
-    pdf: "filePdfBtn",
-    image: "fileImageBtn",
-    notes: "fileNotesBtn"
-  };
-
+  const ids = { pdf: "filePdfBtn", image: "fileImageBtn", notes: "fileNotesBtn" };
   setActiveButton("#filesTools .tool-btn", ids[tool]);
 
   if ($("pdfUploadBox")) {
@@ -705,11 +719,7 @@ async function askBackend(input, mode) {
   }
 
   if (hasReachedLimit()) {
-    showAnswer(
-      "Limit",
-      "Free limit reached",
-      "You have used your free answers today. Upgrade to Pro for more access."
-    );
+    showAnswer("Limit", "Free limit reached", "You have used your free answers today. Upgrade to Pro for more access.");
     return null;
   }
 
@@ -754,11 +764,6 @@ async function askPdfBackend(question = "") {
     return null;
   }
 
-  if (hasReachedLimit()) {
-    showAnswer("Limit", "Free limit reached", "Upgrade to Pro for more access.");
-    return null;
-  }
-
   const formData = new FormData();
   formData.append("pdf", uploadedPdfFile);
   formData.append("tool", activeFileTool === "notes" ? "notes" : "summary");
@@ -768,9 +773,7 @@ async function askPdfBackend(question = "") {
 
   const response = await fetch(ASK_PDF_URL, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
+    headers: { Authorization: `Bearer ${token}` },
     body: formData
   });
 
@@ -801,11 +804,6 @@ async function askImageBackend(question = "") {
     return null;
   }
 
-  if (hasReachedLimit()) {
-    showAnswer("Limit", "Free limit reached", "Upgrade to Pro for more access.");
-    return null;
-  }
-
   const formData = new FormData();
   formData.append("image", uploadedImageFile);
   formData.append("question", question || "");
@@ -814,9 +812,7 @@ async function askImageBackend(question = "") {
 
   const response = await fetch(ASK_IMAGE_URL, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
+    headers: { Authorization: `Bearer ${token}` },
     body: formData
   });
 
@@ -837,10 +833,7 @@ async function readCurrentPage() {
   try {
     if ($("pageStatus")) $("pageStatus").textContent = "Reading page...";
 
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true
-    });
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     if (!tab?.id || !tab.url || tab.url.startsWith("chrome://")) {
       if ($("pageStatus")) $("pageStatus").textContent = "Unsupported page";
@@ -923,15 +916,7 @@ function buildPrompt(userMessage = "") {
   if (activeMode === "quick") {
     return `
 Mode: Quick
-
-IMPORTANT RULES:
-- Always answer directly.
-- Never ask for more information unless absolutely necessary.
-- Sound confident and useful.
-- Give the actual answer first.
-- Use short but smart explanations.
-- No filler text.
-
+Answer directly. Do not ask for more information unless absolutely necessary.
 User:
 ${userMessage}
 `;
@@ -940,9 +925,7 @@ ${userMessage}
   if (activeMode === "deep") {
     return `
 Mode: Deep
-Give a stronger and detailed answer.
-Use structure and practical examples.
-
+Give a detailed answer with structure and examples.
 User:
 ${userMessage}
 `;
@@ -952,13 +935,7 @@ ${userMessage}
     return `
 Mode: Study
 Tool: ${activeStudyTool}
-
-Rules:
-- Explain like a good teacher.
-- Use simple language.
-- If tool is notes, make clean study notes.
-- If tool is quiz, make questions and answers.
-
+Explain like a good teacher.
 User:
 ${userMessage}
 `;
@@ -967,8 +944,6 @@ ${userMessage}
   if (activeMode === "page") {
     return `
 Mode: Page
-Tool: ${activePageTool}
-
 Current page:
 ${cleanText(currentPageText, 14000)}
 
@@ -980,8 +955,6 @@ ${userMessage || "Summarize and explain this page."}
   if (activeMode === "youtube") {
     return `
 Mode: YouTube
-Tool: ${activeYoutubeTool}
-
 YouTube page:
 ${cleanText(currentPageText, 14000)}
 
@@ -1011,21 +984,14 @@ async function runMainAction() {
 
   try {
     let data = null;
-
-    const autoPage =
-      activeMode === "quick" &&
-      shouldUsePageContext(userMessage);
+    const autoPage = activeMode === "quick" && shouldUsePageContext(userMessage);
 
     if (activeMode === "page" || activeMode === "youtube" || autoPage) {
       if (!currentPageText) {
         const loaded = await readCurrentPage();
 
         if (!loaded) {
-          showAnswer(
-            "Page",
-            "Could not read page",
-            "Open a normal webpage or YouTube video and try again."
-          );
+          showAnswer("Page", "Could not read page", "Open a normal webpage or YouTube video and try again.");
           return;
         }
       }
@@ -1042,11 +1008,8 @@ ${userMessage || "Summarize this page."}
         "page"
       );
     } else if (activeMode === "files") {
-      if (activeFileTool === "image") {
-        data = await askImageBackend(userMessage);
-      } else {
-        data = await askPdfBackend(userMessage);
-      }
+      if (activeFileTool === "image") data = await askImageBackend(userMessage);
+      else data = await askPdfBackend(userMessage);
     } else {
       data = await askBackend(buildPrompt(userMessage), activeMode);
     }
@@ -1063,11 +1026,7 @@ ${userMessage || "Summarize this page."}
 
     showAnswer(activeMode, title, data.answer, data.sources || []);
 
-    saveLocalHistory(
-      activeMode,
-      userMessage || currentPageTitle || uploadedPdfName || uploadedImageName,
-      data.answer
-    );
+    saveLocalHistory(activeMode, userMessage || currentPageTitle || uploadedPdfName || uploadedImageName, data.answer);
 
     if ($("mainInput")) $("mainInput").value = "";
   } catch (error) {
@@ -1094,23 +1053,15 @@ async function handleReadPage() {
     const loaded = await readCurrentPage();
 
     if (!loaded) {
-      showAnswer(
-        "Page",
-        "Could not read page",
-        "Open a normal webpage or YouTube video and try again."
-      );
+      showAnswer("Page", "Could not read page", "Open a normal webpage or YouTube video and try again.");
       return;
     }
 
     const label = activeMode === "youtube" ? "YouTube" : "Page";
 
-    showAnswer(
-      label,
-      "Page loaded",
-      `Loaded: ${currentPageTitle}
+    showAnswer(label, "Page loaded", `Loaded: ${currentPageTitle}
 
-Now ask a question or press Send.`
-    );
+Now ask a question or press Send.`);
   } catch (error) {
     showAnswer("Error", "Page error", error.message || "Could not read page.");
   } finally {
@@ -1122,14 +1073,6 @@ function handlePdfUpload(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-    uploadedPdfFile = null;
-    uploadedPdfName = "";
-    if ($("pdfFileName")) $("pdfFileName").textContent = "Please choose a PDF";
-    showAnswer("Files", "Wrong file", "Please upload a PDF file.");
-    return;
-  }
-
   uploadedPdfFile = file;
   uploadedPdfName = file.name;
 
@@ -1140,16 +1083,6 @@ function handlePdfUpload(event) {
 function handleImageUpload(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-
-  const validTypes = ["image/png", "image/jpeg", "image/webp"];
-
-  if (!validTypes.includes(file.type)) {
-    uploadedImageFile = null;
-    uploadedImageName = "";
-    if ($("imageFileName")) $("imageFileName").textContent = "Choose PNG, JPG or WEBP";
-    showAnswer("Files", "Wrong file", "Please upload PNG, JPG or WEBP.");
-    return;
-  }
 
   uploadedImageFile = file;
   uploadedImageName = file.name;
@@ -1216,5 +1149,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  initSupabase();
   await initAuth();
 });
