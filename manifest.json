@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Instant Answer",
-  "version": "2.6",
+  "version": "2.8",
   "description": "Smart AI browser assistant with chat, PDF, YouTube and page understanding",
 
   "action": {
@@ -16,5 +16,11 @@
 
   "host_permissions": [
     "https://instant-answer-backend-clean.onrender.com/*"
-  ]
+  ],
+
+  "externally_connectable": {
+    "matches": [
+      "https://instant-answer-backend-clean.onrender.com/*"
+    ]
+  }
 }

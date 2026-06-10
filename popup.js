@@ -473,3 +473,14 @@ document.addEventListener("DOMContentLoaded", () => {
   setMode("quick");
   updateUsageUI();
 });
+
+// ── Pro activation listener ──────────────────────────────
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === "PRO_ACTIVATED") {
+    localStorage.setItem("instant_answer_pro", "true");
+    updateUsageUI();
+    showResult("Pro", "Pro activated! ⚡", "Welcome to Instant Answer Pro!\n\nYou now have unlimited answers.");
+    const upgradeBtn = $("upgradeBtn");
+    if (upgradeBtn) upgradeBtn.textContent = "Pro ✓";
+  }
+});
