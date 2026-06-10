@@ -7,509 +7,61 @@
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-
-:root{
-  --border:rgba(255,255,255,.1);
-  --text:#ffffff;
-  --muted:#b8b8b8;
-  --green:#b7ff4a;
-  --danger:#ff6b6b;
-}
-
-body{
-  width:430px;
-  height:620px;
-  overflow:hidden;
-  font-family:Inter, Arial, sans-serif;
-  color:var(--text);
-  background:#050505;
-  padding:10px;
-}
-
-.app{
-  height:100%;
-  overflow:hidden;
-  border-radius:28px;
-  padding:14px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  background:
-    radial-gradient(circle at top left,rgba(183,255,74,.16),transparent 30%),
-    linear-gradient(180deg,#111,#050505);
-  border:1px solid var(--border);
-}
-
-button{
-  border:none;
-  cursor:pointer;
-  transition:.18s ease;
-  font-family:Inter, Arial, sans-serif;
-}
-
+:root{--green:#b7ff4a;--bg:#050505;--card:#1c1c1c;--muted:#b8b8b8;--border:rgba(255,255,255,.12);--danger:#ff6b6b}
+body{width:430px;height:620px;overflow:hidden;font-family:Arial,sans-serif;background:var(--bg);color:white;padding:10px}
+.app{height:100%;border-radius:28px;padding:16px;background:radial-gradient(circle at top left,rgba(183,255,74,.16),transparent 32%),linear-gradient(180deg,#111,#050505);border:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+button{border:none;cursor:pointer;font-family:Arial,sans-serif}
 .hidden{display:none!important}
 
-.auth-screen{
-  height:100%;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  gap:14px;
-}
-
-.auth-brand{
-  font-size:15px;
-  font-weight:950;
-}
-
-.auth-brand span{color:var(--green)}
-
-.auth-title{
-  font-size:34px;
-  line-height:.95;
-  letter-spacing:-2px;
-  font-weight:950;
-}
-
-.auth-title span{color:var(--green)}
-
-.auth-subtitle{
-  font-size:12px;
-  line-height:1.45;
-  color:var(--muted);
-}
-
-.auth-box{
-  padding:14px;
-  border-radius:22px;
-  background:rgba(255,255,255,.055);
-  border:1px solid var(--border);
-  display:flex;
-  flex-direction:column;
-  gap:9px;
-}
-
-.auth-tabs{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:7px;
-}
-
-.auth-tab{
-  padding:10px;
-  border-radius:15px;
-  font-size:12px;
-  font-weight:950;
-  color:var(--muted);
-  background:rgba(255,255,255,.06);
-  border:1px solid var(--border);
-}
-
-.auth-tab.active{
-  color:#070707;
-  background:var(--green);
-}
-
-.auth-input{
-  width:100%;
-  outline:none;
-  border:none;
-  padding:12px;
-  border-radius:16px;
-  font-size:13px;
-  color:white;
-  background:rgba(255,255,255,.065);
-  border:1px solid var(--border);
-}
-
-.auth-input::placeholder{color:#777}
-
-.auth-primary{
-  width:100%;
-  padding:12px;
-  border-radius:17px;
-  font-size:13px;
-  font-weight:950;
-  color:#070707;
-  background:var(--green);
-}
-
-.auth-secondary{
-  width:100%;
-  padding:11px;
-  border-radius:17px;
-  font-size:12px;
-  font-weight:950;
-  color:white;
-  background:rgba(255,255,255,.07);
-  border:1px solid var(--border);
-}
-
-.auth-link{
-  color:var(--green);
-  background:transparent;
-  font-size:12px;
-  font-weight:800;
-  text-align:left;
-  padding:4px 0;
-}
-
-.auth-message{
-  min-height:18px;
-  font-size:11.5px;
-  color:var(--muted);
-  line-height:1.35;
-}
-
+.auth-screen{height:100%;display:flex;flex-direction:column;justify-content:center;gap:16px}
+.auth-brand,.brand{font-size:16px;font-weight:900}
+.auth-brand span,.brand span,.auth-title span,.hero h1 span{color:var(--green)}
+.auth-title{font-size:42px;line-height:.95;font-weight:950;letter-spacing:-2px}
+.auth-subtitle,.subtitle,.panel-subtitle{color:var(--muted);font-size:13px;line-height:1.4}
+.auth-box{padding:18px;border-radius:24px;background:rgba(255,255,255,.055);border:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.auth-tab,.small-btn,.mode-tab,.tool-btn,.secondary-btn{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
+.auth-tab{padding:13px;border-radius:17px;font-weight:900}
+.auth-tab.active,.primary-btn,.upgrade-btn,.mode-tab.active,.tool-btn.active{background:var(--green);color:#050505}
+.auth-input,textarea{width:100%;outline:none;border:1px solid var(--border);background:#242424;color:white;border-radius:17px;padding:14px;font-size:14px}
+.auth-primary{padding:14px;border-radius:18px;background:var(--green);font-weight:950;font-size:15px}
+.auth-link{background:transparent;color:var(--green);font-weight:900;text-align:left;font-size:13px}
+.auth-message{min-height:18px;font-size:12px;color:var(--muted)}
 .auth-message.error{color:var(--danger)}
 .auth-message.success{color:var(--green)}
 
-.top{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  flex-shrink:0;
-  gap:8px;
-}
+.main-app{height:100%;display:flex;flex-direction:column;gap:10px;min-height:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.top-actions{display:flex;gap:6px;align-items:center}
+.small-btn,.upgrade-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap}
+.hero h1{font-size:42px;line-height:.9;font-weight:950;letter-spacing:-2px}
+.status-row{display:flex;gap:8px;margin-top:10px}
+.status-pill{padding:9px 11px;border-radius:999px;background:var(--green);color:#050505;font-size:11px;font-weight:900;white-space:nowrap}
+#userStatus,#pageStatus{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border);overflow:hidden;text-overflow:ellipsis}
+#userStatus{max-width:155px}
+#pageStatus{flex:1}
 
-.brand{
-  font-size:14px;
-  font-weight:950;
-  white-space:nowrap;
-}
+.mode-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.mode-tab{padding:10px 4px;border-radius:15px;font-size:10px;font-weight:900}
 
-.brand span{color:var(--green)}
-
-.top-actions{
-  display:flex;
-  gap:6px;
-  align-items:center;
-}
-
-.small-btn,
-.upgrade-btn{
-  padding:8px 9px;
-  border-radius:14px;
-  font-size:9.5px;
-  font-weight:900;
-  white-space:nowrap;
-}
-
-.small-btn{
-  color:white;
-  background:rgba(255,255,255,.07);
-  border:1px solid var(--border);
-}
-
-.upgrade-btn{
-  color:#070707;
-  background:var(--green);
-}
-
-.hero{flex-shrink:0}
-
-.hero h1{
-  font-size:34px;
-  line-height:.9;
-  letter-spacing:-2px;
-  font-weight:950;
-}
-
-.hero h1 span{color:var(--green)}
-
-.subtitle{
-  margin-top:7px;
-  font-size:12px;
-  line-height:1.35;
-  color:var(--muted);
-}
-
-.status-row{
-  display:flex;
-  gap:7px;
-  margin-top:9px;
-}
-
-.status-pill{
-  padding:8px 10px;
-  border-radius:999px;
-  font-size:10px;
-  font-weight:900;
-  color:#070707;
-  background:var(--green);
-}
-
-#pageStatus{
-  flex:1;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  color:var(--muted);
-  background:rgba(255,255,255,.07);
-  border:1px solid var(--border);
-}
-
-#userStatus{
-  max-width:150px;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  color:white;
-  background:rgba(255,255,255,.07);
-  border:1px solid var(--border);
-}
-
-.mode-tabs{
-  display:grid;
-  grid-template-columns:repeat(6,1fr);
-  gap:5px;
-  flex-shrink:0;
-}
-
-.mode-tab{
-  padding:9px 3px;
-  border-radius:14px;
-  font-size:9px;
-  font-weight:950;
-  color:var(--muted);
-  background:rgba(255,255,255,.06);
-  border:1px solid var(--border);
-}
-
-.mode-tab.active{
-  color:#070707;
-  background:var(--green);
-  border-color:transparent;
-}
-
-.panel{
-  flex:1;
-  min-height:0;
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-  border-radius:24px;
-  padding:13px;
-  background:rgba(255,255,255,.055);
-  border:1px solid var(--border);
-}
-
-.panel-head{
-  flex-shrink:0;
-  margin-bottom:8px;
-}
-
-.panel-title{
-  font-size:20px;
-  font-weight:950;
-}
-
-.panel-subtitle{
-  margin-top:4px;
-  font-size:11.5px;
-  line-height:1.35;
-  color:var(--muted);
-}
-
-#result{
-  flex:1;
-  min-height:95px;
-  overflow-y:auto;
-  padding:12px;
-  margin-bottom:8px;
-  font-size:13.5px;
-  line-height:1.65;
-  border-radius:20px;
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.08);
-}
-
-.answer-label{
-  font-size:10px;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  font-weight:950;
-  color:var(--green);
-  margin-bottom:6px;
-}
-
-.answer-title{
-  font-size:18px;
-  font-weight:950;
-  margin-bottom:8px;
-}
-
-.answer-content{
-  color:#e8e8e8;
-  white-space:pre-wrap;
-  word-break:break-word;
-}
-
-.mode-tools{
-  display:none;
-  grid-template-columns:repeat(3,1fr);
-  gap:7px;
-  margin-bottom:8px;
-  flex-shrink:0;
-}
-
-.tool-btn{
-  padding:9px 5px;
-  border-radius:14px;
-  font-size:10px;
-  font-weight:950;
-  color:var(--muted);
-  background:rgba(255,255,255,.06);
-  border:1px solid var(--border);
-}
-
-.tool-btn.active{
-  color:#070707;
-  background:var(--green);
-}
-
-.file-box{
-  display:none;
-  margin-bottom:8px;
-  padding:10px;
-  border-radius:16px;
-  background:rgba(255,255,255,.045);
-  border:1px dashed rgba(255,255,255,.18);
-  flex-shrink:0;
-}
-
-.file-box input{
-  width:100%;
-  color:white;
-  font-size:11px;
-}
-
-#pdfFileName,
-#imageFileName{
-  margin-top:6px;
-  font-size:10.5px;
-  color:var(--muted);
-  overflow:hidden;
-  white-space:nowrap;
-  text-overflow:ellipsis;
-}
-
-.composer{
-  flex-shrink:0;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
-
-textarea{
-  width:100%;
-  height:54px;
-  resize:none;
-  outline:none;
-  border:none;
-  padding:12px;
-  border-radius:17px;
-  font-size:13px;
-  line-height:1.35;
-  font-family:Inter, Arial, sans-serif;
-  color:white;
-  background:rgba(255,255,255,.065);
-  border:1px solid var(--border);
-}
-
-textarea::placeholder{color:#777}
-
-.action-row{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-}
-
-.primary-btn,
-.secondary-btn{
-  width:100%;
-  padding:11px;
-  border-radius:17px;
-  font-size:13px;
-  font-weight:950;
-}
-
-.primary-btn{
-  color:#070707;
-  background:var(--green);
-}
-
-.secondary-btn{
-  color:white;
-  background:rgba(255,255,255,.07);
-  border:1px solid var(--border);
-}
-
-.loading{
-  height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  font-size:13px;
-  color:var(--muted);
-}
-
-.code-block{
-  background:#050505;
-  border:1px solid rgba(255,255,255,.1);
-  padding:10px;
-  border-radius:12px;
-  overflow:auto;
-  margin:8px 0;
-  font-size:12px;
-  color:#e5e7eb;
-}
-
-.source-box,
-.history-item{
-  margin-top:9px;
-  padding:10px;
-  border-radius:16px;
-  background:rgba(255,255,255,.055);
-  border:1px solid var(--border);
-}
-
-.billing-card{
-  margin-top:9px;
-  padding:12px;
-  border-radius:18px;
-  background:rgba(255,255,255,.055);
-  border:1px solid var(--border);
-}
-
-.billing-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-  margin-top:10px;
-}
-
-.billing-btn{
-  padding:10px;
-  border-radius:15px;
-  font-size:11px;
-  font-weight:950;
-  color:#070707;
-  background:var(--green);
-}
-
-.billing-btn.secondary{
-  color:white;
-  background:rgba(255,255,255,.07);
-  border:1px solid var(--border);
-}
-
+.panel{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;border-radius:24px;padding:14px;background:rgba(255,255,255,.055);border:1px solid var(--border)}
+.panel-title{font-size:23px;font-weight:950}
+#result{flex:1;min-height:100px;overflow-y:auto;margin:10px 0;padding:14px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid var(--border);font-size:14px;line-height:1.6}
+.answer-label{font-size:11px;text-transform:uppercase;color:var(--green);font-weight:950;margin-bottom:8px}
+.answer-title{font-size:20px;font-weight:950;margin-bottom:8px}
+.answer-content{white-space:pre-wrap;word-break:break-word}
+.loading{height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.mode-tools{display:none;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
+.tool-btn{padding:9px;border-radius:14px;font-size:10px;font-weight:900}
+.file-box{display:none;margin-bottom:8px;padding:10px;border-radius:16px;background:rgba(255,255,255,.045);border:1px dashed var(--border)}
+.file-box input{width:100%;color:white;font-size:11px}
+#pdfFileName,#imageFileName{margin-top:6px;color:var(--muted);font-size:11px}
+textarea{height:58px;resize:none}
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.primary-btn,.secondary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px}
+.history-item,.source-box{margin-top:10px;padding:10px;border-radius:16px;background:rgba(255,255,255,.055);border:1px solid var(--border)}
 ::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-thumb{
-  border-radius:999px;
-  background:rgba(255,255,255,.2);
-}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:999px}
 </style>
 </head>
 
@@ -521,9 +73,7 @@ textarea::placeholder{color:#777}
 
     <div>
       <div class="auth-title">Your AI<br><span>workspace</span></div>
-      <div class="auth-subtitle">
-        Login to use Instant Answer, save your history and keep your AI memory across devices.
-      </div>
+      <div class="auth-subtitle">Login to use Instant Answer, save your history and keep your AI memory across devices.</div>
     </div>
 
     <div class="auth-box">
@@ -543,7 +93,7 @@ textarea::placeholder{color:#777}
     </div>
   </div>
 
-  <div id="mainApp" class="hidden" style="height:100%;display:flex;flex-direction:column;gap:10px;min-height:0;">
+  <div id="mainApp" class="main-app hidden">
 
     <div class="top">
       <div class="brand">Instant <span>Answer</span></div>
@@ -559,9 +109,7 @@ textarea::placeholder{color:#777}
 
     <div class="hero">
       <h1>Fast AI<br><span>for work</span></h1>
-      <div class="subtitle">
-        Quick answers, study notes, page reading, YouTube summaries and file analysis.
-      </div>
+      <div class="subtitle">Quick answers, study notes, page reading, YouTube summaries and file analysis.</div>
 
       <div class="status-row">
         <div id="proStatus" class="status-pill">Free</div>
@@ -580,15 +128,12 @@ textarea::placeholder{color:#777}
     </div>
 
     <div class="panel">
-
-      <div class="panel-head">
+      <div>
         <div id="panelTitle" class="panel-title">Quick Mode</div>
         <div id="panelSubtitle" class="panel-subtitle">Fast answers with simple wording.</div>
       </div>
 
-      <div id="result">
-        <div class="loading">Ready</div>
-      </div>
+      <div id="result"><div class="loading">Ready</div></div>
 
       <div id="studyTools" class="mode-tools">
         <button id="studyExplainBtn" class="tool-btn active" type="button">Explain</button>
@@ -624,15 +169,12 @@ textarea::placeholder{color:#777}
         <div id="imageFileName">No image selected</div>
       </div>
 
-      <div class="composer">
-        <textarea id="mainInput" placeholder="Ask anything..."></textarea>
+      <textarea id="mainInput" placeholder="Ask anything..."></textarea>
 
-        <div class="action-row">
-          <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
-          <button id="readPageBtn" class="secondary-btn" type="button">Read page</button>
-        </div>
+      <div class="action-row">
+        <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
+        <button id="readPageBtn" class="secondary-btn" type="button">Read page</button>
       </div>
-
     </div>
   </div>
 </div>

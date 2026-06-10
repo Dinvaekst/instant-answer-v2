@@ -15,7 +15,10 @@ const SUPABASE_ANON_KEY =
 
 const DAILY_LIMIT = 5;
 
-let supabaseClient = null;
+let sb = null;
+let currentUser = null;
+let currentSession = null;
+let authMode = "login";
 
 let activeMode = "quick";
 let activeStudyTool = "explain";
@@ -24,51 +27,27 @@ let activeYoutubeTool = "summary";
 let activeFileTool = "pdf";
 
 let isGenerating = false;
-let currentUser = null;
-let currentSession = null;
-let authMode = "login";
 
 let currentPageText = "";
 let currentPageTitle = "";
-let currentPageUrl = "";
-
 let uploadedPdfFile = null;
 let uploadedPdfName = "";
 let uploadedImageFile = null;
 let uploadedImageName = "";
 
-let userMemory = null;
 let cloudHistory = [];
-let historyItems = JSON.parse(localStorage.getItem("ia_history") || "[]");
+let localHistory = JSON.parse(localStorage.getItem("ia_history") || "[]");
 
 function $(id) {
   return document.getElementById(id);
 }
 
-function on(id, event, handler) {
-  const el = $(id);
-  if (el) {
-    el.onclick = null;
-    el.addEventListener(event, handler);
-  }
+function safeText(value = "") {
+  return String(value ?? "");
 }
 
-function initSupabase() {
-  if (!window.supabase) {
-    showAuthMessage("Supabase failed to load. Check supabase.js file.", "error");
-    return false;
-  }
-
-  supabaseClient = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY
-  );
-
-  return true;
-}
-
-function escapeHTML(text = "") {
-  return String(text)
+function escapeHTML(value = "") {
+  return safeText(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -77,22 +56,29 @@ function escapeHTML(text = "") {
 }
 
 function formatAnswer(text = "") {
-  let safe = escapeHTML(text);
-
-  safe = safe.replace(/```([\s\S]*?)```/g, (_, code) => {
-    return `<pre class="code-block"><code>${escapeHTML(code.trim())}</code></pre>`;
-  });
-
-  safe = safe.replace(/^### (.*$)/gim, "<h3>$1</h3>");
-  safe = safe.replace(/^## (.*$)/gim, "<h2>$1</h2>");
-  safe = safe.replace(/^# (.*$)/gim, "<h1>$1</h1>");
-  safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
-  return safe.replace(/\n/g, "<br>");
+  return escapeHTML(text)
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n/g, "<br>");
 }
 
-function cleanText(text = "", limit = 14000) {
-  return String(text || "").replace(/\s+/g, " ").trim().slice(0, limit);
+function showAuthMessage(message, type = "") {
+  const el = $("authMessage");
+  if (!el) return;
+  el.textContent = message;
+  el.className = `auth-message ${type}`;
+}
+
+function showResult(label, title, body) {
+  const result = $("result");
+  if (!result) return;
+
+  result.innerHTML = `
+    <div class="answer-box">
+      <div class="answer-label">${escapeHTML(label)}</div>
+      <div class="answer-title">${escapeHTML(title)}</div>
+      <div class="answer-content">${formatAnswer(body)}</div>
+    </div>
+  `;
 }
 
 function showLoading(text = "Loading") {
@@ -107,97 +93,82 @@ function showReady(text = "Ready") {
   result.innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
 }
 
-function showAnswer(label, title, answer, sources = []) {
-  const result = $("result");
-  if (!result) return;
+function initSupabase() {
+  try {
+    if (!window.supabase) {
+      showAuthMessage("Supabase file is missing.", "error");
+      return false;
+    }
 
-  const sourceHTML = Array.isArray(sources) && sources.length
-    ? `
-      <div class="source-box">
-        <strong>Sources</strong><br>
-        ${sources.slice(0, 4).map(source => `
-          <div>
-            ${
-              source.url
-                ? `<a href="${escapeHTML(source.url)}" target="_blank">${escapeHTML(source.title || source.url)}</a>`
-                : escapeHTML(source.title || "Source")
-            }
-          </div>
-        `).join("")}
-      </div>
-    `
-    : "";
-
-  result.innerHTML = `
-    <div class="answer-box">
-      <div class="answer-label">${escapeHTML(label)}</div>
-      <div class="answer-title">${escapeHTML(title)}</div>
-      <div class="answer-content">${formatAnswer(answer)}</div>
-      ${sourceHTML}
-    </div>
-  `;
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return true;
+  } catch (error) {
+    console.error("Supabase init error:", error);
+    showAuthMessage("Supabase could not start.", "error");
+    return false;
+  }
 }
 
-function showAuthMessage(message, type = "") {
-  const el = $("authMessage");
-  if (!el) return;
-  el.textContent = message;
-  el.className = `auth-message ${type}`;
+async function getSession() {
+  if (!sb) return null;
+
+  const { data } = await sb.auth.getSession();
+  currentSession = data?.session || null;
+  currentUser = currentSession?.user || null;
+
+  return currentSession;
 }
 
-async function getAccessToken() {
-  if (!supabaseClient) return "";
-
-  const {
-    data: { session }
-  } = await supabaseClient.auth.getSession();
-
-  currentSession = session || null;
-  currentUser = session?.user || null;
-
+async function getToken() {
+  const session = await getSession();
   return session?.access_token || "";
 }
 
-function getTodayUsageKey() {
-  const date = new Date().toISOString().split("T")[0];
-  const userPart = currentUser?.id || "guest";
-  return `ia_usage_${userPart}_${date}`;
+function getUsageKey() {
+  const date = new Date().toISOString().slice(0, 10);
+  const userId = currentUser?.id || "guest";
+  return `ia_usage_${userId}_${date}`;
 }
 
 function getUsage() {
-  return Number(localStorage.getItem(getTodayUsageKey()) || 0);
+  return Number(localStorage.getItem(getUsageKey()) || 0);
 }
 
 function increaseUsage() {
-  if (localStorage.getItem("instant_answer_pro") !== "true") {
-    localStorage.setItem(getTodayUsageKey(), String(getUsage() + 1));
-  }
+  if (localStorage.getItem("instant_answer_pro") === "true") return;
+  localStorage.setItem(getUsageKey(), String(getUsage() + 1));
 }
 
-function getRemainingUsage() {
-  return Math.max(DAILY_LIMIT - getUsage(), 0);
+function isPro() {
+  return localStorage.getItem("instant_answer_pro") === "true";
+}
+
+function updateUsageUI() {
+  const proStatus = $("proStatus");
+  if (!proStatus) return;
+
+  if (isPro()) {
+    proStatus.textContent = "Pro";
+  } else {
+    proStatus.textContent = `Free · ${Math.max(0, DAILY_LIMIT - getUsage())}/${DAILY_LIMIT}`;
+  }
 }
 
 function hasReachedLimit() {
-  return getUsage() >= DAILY_LIMIT && localStorage.getItem("instant_answer_pro") !== "true";
-}
-
-function updateFreeStatus() {
-  if ($("proStatus")) {
-    $("proStatus").textContent = `Free · ${getRemainingUsage()}/${DAILY_LIMIT}`;
-  }
+  return !isPro() && getUsage() >= DAILY_LIMIT;
 }
 
 async function checkProStatus() {
   try {
-    const token = await getAccessToken();
+    const token = await getToken();
 
     if (!token) {
-      updateFreeStatus();
+      localStorage.removeItem("instant_answer_pro");
+      updateUsageUI();
       return;
     }
 
-    const response = await fetch(CHECK_PRO_URL, {
+    const res = await fetch(CHECK_PRO_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -205,22 +176,36 @@ async function checkProStatus() {
       }
     });
 
-    const data = await response.json();
-    const isPro = data?.pro === true || data?.plan === "pro";
+    const data = await res.json();
 
-    if (isPro) {
+    if (data?.pro || data?.plan === "pro") {
       localStorage.setItem("instant_answer_pro", "true");
-      if ($("proStatus")) $("proStatus").textContent = "Pro";
-      if ($("upgradeBtn")) $("upgradeBtn").textContent = "Pro";
+      $("upgradeBtn").textContent = "Pro";
     } else {
       localStorage.removeItem("instant_answer_pro");
-      updateFreeStatus();
-      if ($("upgradeBtn")) $("upgradeBtn").textContent = "Upgrade";
+      $("upgradeBtn").textContent = "Upgrade";
     }
+
+    updateUsageUI();
   } catch (error) {
-    console.error("Pro check failed:", error);
-    updateFreeStatus();
+    console.error("checkProStatus error:", error);
+    updateUsageUI();
   }
+}
+
+function showAuthScreen() {
+  $("authScreen")?.classList.remove("hidden");
+  $("mainApp")?.classList.add("hidden");
+}
+
+function showMainApp(user) {
+  $("authScreen")?.classList.add("hidden");
+  $("mainApp")?.classList.remove("hidden");
+
+  const email = user?.email || "User";
+  if ($("userStatus")) $("userStatus").textContent = email;
+
+  updateUsageUI();
 }
 
 function switchAuthMode(mode) {
@@ -232,43 +217,22 @@ function switchAuthMode(mode) {
   if (mode === "login") {
     $("loginTabBtn")?.classList.add("active");
     $("authNameInput")?.classList.add("hidden");
-    if ($("authMainBtn")) $("authMainBtn").textContent = "Login";
     $("forgotPasswordBtn")?.classList.remove("hidden");
+    if ($("authMainBtn")) $("authMainBtn").textContent = "Login";
   } else {
     $("signupTabBtn")?.classList.add("active");
     $("authNameInput")?.classList.remove("hidden");
-    if ($("authMainBtn")) $("authMainBtn").textContent = "Create account";
     $("forgotPasswordBtn")?.classList.add("hidden");
+    if ($("authMainBtn")) $("authMainBtn").textContent = "Create account";
   }
 
   showAuthMessage("");
 }
 
-function showMainApp(user, session = null) {
-  currentUser = user;
-  currentSession = session;
-
-  $("authScreen")?.classList.add("hidden");
-  $("mainApp")?.classList.remove("hidden");
-
-  if ($("userStatus")) $("userStatus").textContent = user?.email || "User";
-  updateFreeStatus();
-}
-
-function showAuthScreen() {
-  currentUser = null;
-  currentSession = null;
-  userMemory = null;
-  cloudHistory = [];
-
-  $("mainApp")?.classList.add("hidden");
-  $("authScreen")?.classList.remove("hidden");
-}
-
 async function handleAuth() {
   try {
-    if (!supabaseClient) {
-      showAuthMessage("Auth system not loaded.", "error");
+    if (!sb) {
+      showAuthMessage("Auth is not ready.", "error");
       return;
     }
 
@@ -277,19 +241,19 @@ async function handleAuth() {
     const fullName = $("authNameInput")?.value.trim();
 
     if (!email || !password) {
-      showAuthMessage("Missing email or password", "error");
+      showAuthMessage("Enter email and password.", "error");
       return;
     }
 
     if (password.length < 6) {
-      showAuthMessage("Password must be at least 6 characters", "error");
+      showAuthMessage("Password must be at least 6 characters.", "error");
       return;
     }
 
     showAuthMessage("Loading...");
 
     if (authMode === "signup") {
-      const { data, error } = await supabaseClient.auth.signUp({
+      const { data, error } = await sb.auth.signUp({
         email,
         password,
         options: {
@@ -305,19 +269,21 @@ async function handleAuth() {
       }
 
       if (data?.session?.user) {
-        showMainApp(data.session.user, data.session);
+        currentUser = data.session.user;
+        currentSession = data.session;
+        showMainApp(currentUser);
         setMode("quick");
         await checkProStatus();
-        await refreshPersonalData(true);
+        await loadMemory(true);
         return;
       }
 
-      showAuthMessage("Account created. You can login now.", "success");
+      showAuthMessage("Account created. Try login now.", "success");
       switchAuthMode("login");
       return;
     }
 
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
+    const { data, error } = await sb.auth.signInWithPassword({
       email,
       password
     });
@@ -327,69 +293,71 @@ async function handleAuth() {
       return;
     }
 
-    showMainApp(data.user, data.session);
+    currentUser = data.user;
+    currentSession = data.session;
+
+    showMainApp(currentUser);
     setMode("quick");
     await checkProStatus();
-    await refreshPersonalData(true);
+    await loadMemory(true);
   } catch (error) {
-    console.error(error);
-    showAuthMessage("Authentication failed", "error");
+    console.error("Auth error:", error);
+    showAuthMessage("Login/signup failed.", "error");
   }
 }
 
 async function forgotPassword() {
-  if (!supabaseClient) {
-    showAuthMessage("Auth system not loaded.", "error");
+  if (!sb) {
+    showAuthMessage("Auth is not ready.", "error");
     return;
   }
 
   const email = $("authEmailInput")?.value.trim();
 
   if (!email) {
-    showAuthMessage("Enter your email first", "error");
+    showAuthMessage("Enter your email first.", "error");
     return;
   }
 
-  const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+  const { error } = await sb.auth.resetPasswordForEmail(email);
 
   if (error) {
     showAuthMessage(error.message, "error");
     return;
   }
 
-  showAuthMessage("Password reset email sent", "success");
+  showAuthMessage("Password reset email sent.", "success");
 }
 
 async function logout() {
-  if (supabaseClient) {
-    await supabaseClient.auth.signOut();
-  }
+  if (sb) await sb.auth.signOut();
 
+  currentUser = null;
+  currentSession = null;
   localStorage.removeItem("instant_answer_pro");
+
   showAuthScreen();
-  showAuthMessage("Logged out", "success");
+  showAuthMessage("Logged out.", "success");
 }
 
-async function loadMemoryProfile(showWelcome = false) {
+async function loadMemory(showWelcome = false) {
   try {
-    const token = await getAccessToken();
+    const token = await getToken();
     if (!token) return;
 
-    const response = await fetch(MEMORY_URL, {
-      method: "GET",
+    const res = await fetch(MEMORY_URL, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
 
-    const data = await response.json();
+    const data = await res.json();
+    const memory = data?.memory;
 
-    if (!response.ok || !data?.memory) return;
-
-    userMemory = data.memory;
+    if (!memory) return;
 
     const name =
-      userMemory.full_name ||
+      memory.full_name ||
       currentUser?.user_metadata?.full_name ||
       currentUser?.email?.split("@")[0] ||
       "User";
@@ -397,122 +365,83 @@ async function loadMemoryProfile(showWelcome = false) {
     if ($("userStatus")) $("userStatus").textContent = name;
 
     if (showWelcome) {
-      showAnswer(
+      showResult(
         "Welcome back",
         `Welcome back ${name}`,
         `Your AI workspace is ready.
 
-Current plan: ${localStorage.getItem("instant_answer_pro") === "true" ? "Pro" : "Free"}
-Favorite mode: ${userMemory.favorite_mode || "quick"}
-Answer style: ${userMemory.answer_style || "clear and simple"}`
+Plan: ${isPro() ? "Pro" : "Free"}
+Favorite mode: ${memory.favorite_mode || "quick"}`
       );
     }
   } catch (error) {
-    console.error("Memory load failed:", error);
+    console.error("Memory error:", error);
   }
 }
 
-async function loadCloudHistory() {
+async function loadHistory() {
   try {
-    const token = await getAccessToken();
+    const token = await getToken();
     if (!token) return;
 
-    const response = await fetch(HISTORY_URL, {
-      method: "GET",
+    const res = await fetch(HISTORY_URL, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
 
-    const data = await response.json();
-    cloudHistory = Array.isArray(data.history) ? data.history : [];
+    const data = await res.json();
+    cloudHistory = Array.isArray(data?.history) ? data.history : [];
   } catch (error) {
-    console.error("History load failed:", error);
+    console.error("History error:", error);
   }
-}
-
-async function refreshPersonalData(showWelcome = false) {
-  await loadMemoryProfile(showWelcome);
-  await loadCloudHistory();
-}
-
-async function initAuth() {
-  if (!supabaseClient) {
-    showAuthScreen();
-    return;
-  }
-
-  const {
-    data: { session }
-  } = await supabaseClient.auth.getSession();
-
-  if (session?.user) {
-    showMainApp(session.user, session);
-    setMode("quick");
-    await checkProStatus();
-    await refreshPersonalData(true);
-  } else {
-    showAuthScreen();
-  }
-
-  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
-    if (session?.user) {
-      showMainApp(session.user, session);
-      await checkProStatus();
-      await refreshPersonalData(false);
-    } else {
-      showAuthScreen();
-    }
-  });
 }
 
 function saveLocalHistory(mode, question, answer) {
-  historyItems.unshift({
+  localHistory.unshift({
     mode,
-    question: String(question || "").slice(0, 220),
-    answer: String(answer || "").slice(0, 700),
+    question: safeText(question).slice(0, 200),
+    answer: safeText(answer).slice(0, 700),
     date: new Date().toISOString()
   });
 
-  historyItems = historyItems.slice(0, 25);
-  localStorage.setItem("ia_history", JSON.stringify(historyItems));
+  localHistory = localHistory.slice(0, 25);
+  localStorage.setItem("ia_history", JSON.stringify(localHistory));
 }
 
 async function showHistory() {
   if (!currentUser) {
     showAuthScreen();
-    showAuthMessage("Login first to see history", "error");
     return;
   }
 
   showLoading("Loading history");
-  await loadCloudHistory();
+  await loadHistory();
 
-  const allHistory = [
+  const items = [
     ...cloudHistory.map(item => ({
       mode: item.mode,
       question: item.question,
       answer: item.answer,
       date: item.created_at
     })),
-    ...historyItems
+    ...localHistory
   ];
 
-  if (!allHistory.length) {
-    showAnswer("History", "No history yet", "You have no saved answers yet.");
+  if (!items.length) {
+    showResult("History", "No history yet", "You have no saved chats yet.");
     return;
   }
 
   $("result").innerHTML = `
     <div class="answer-box">
-      <div class="answer-label">Cloud History</div>
+      <div class="answer-label">History</div>
       <div class="answer-title">Recent chats</div>
-      ${allHistory.slice(0, 30).map(item => `
+      ${items.slice(0, 25).map(item => `
         <div class="history-item">
-          <strong>${escapeHTML(String(item.mode || "").toUpperCase())}</strong><br><br>
+          <strong>${escapeHTML((item.mode || "chat").toUpperCase())}</strong><br><br>
           ${escapeHTML(item.question || "")}<br><br>
-          ${formatAnswer(item.answer || "")}
-          <br><br>
+          ${formatAnswer(item.answer || "")}<br><br>
           <small>${item.date ? new Date(item.date).toLocaleString() : ""}</small>
         </div>
       `).join("")}
@@ -521,35 +450,27 @@ async function showHistory() {
 }
 
 function showPlanDashboard() {
-  const isPro = localStorage.getItem("instant_answer_pro") === "true";
-  const usage = getUsage();
-  const remaining = Math.max(0, DAILY_LIMIT - usage);
-
-  showAnswer(
+  showResult(
     "Plan",
     "Subscription dashboard",
-    `Current plan: ${isPro ? "Pro" : "Free"}
+    `Current plan: ${isPro() ? "Pro" : "Free"}
 
-Usage today: ${isPro ? "Unlimited" : `${usage}/${DAILY_LIMIT}`}
-Remaining today: ${isPro ? "Unlimited" : remaining}
+Usage today: ${isPro() ? "Unlimited" : `${getUsage()}/${DAILY_LIMIT}`}
+Remaining today: ${isPro() ? "Unlimited" : Math.max(0, DAILY_LIMIT - getUsage())}
 
 Upgrade:
-Press Upgrade to open Stripe checkout.
-
-Cancel/manage subscription:
-Disabled for now.`
+Press Upgrade to open Stripe checkout.`
   );
 }
 
 function clearAll() {
   if ($("mainInput")) $("mainInput").value = "";
-  historyItems = [];
+
+  localHistory = [];
   localStorage.removeItem("ia_history");
 
   currentPageText = "";
   currentPageTitle = "";
-  currentPageUrl = "";
-
   uploadedPdfFile = null;
   uploadedPdfName = "";
   uploadedImageFile = null;
@@ -559,132 +480,140 @@ function clearAll() {
   if ($("imageFileInput")) $("imageFileInput").value = "";
   if ($("pdfFileName")) $("pdfFileName").textContent = "No PDF selected";
   if ($("imageFileName")) $("imageFileName").textContent = "No image selected";
+  if ($("pageStatus")) $("pageStatus").textContent = "Ready";
 
   showReady("Ready");
 }
 
-function hideAllTools() {
+function hideTools() {
   ["studyTools", "pageTools", "youtubeTools", "filesTools"].forEach(id => {
-    if ($(id)) $(id).style.display = "none";
+    const el = $(id);
+    if (el) el.style.display = "none";
   });
 
   if ($("pdfUploadBox")) $("pdfUploadBox").style.display = "none";
   if ($("imageUploadBox")) $("imageUploadBox").style.display = "none";
 }
 
-function setActiveButton(groupSelector, activeId) {
-  document.querySelectorAll(groupSelector).forEach(btn => {
+function clearModeActive() {
+  document.querySelectorAll(".mode-tab").forEach(btn => {
     btn.classList.remove("active");
   });
+}
 
-  if ($(activeId)) $(activeId).classList.add("active");
+function clearToolActive(selector) {
+  document.querySelectorAll(selector).forEach(btn => {
+    btn.classList.remove("active");
+  });
 }
 
 function setMode(mode) {
   activeMode = mode;
+  clearModeActive();
+  hideTools();
 
-  document.querySelectorAll(".mode-tab").forEach(btn => {
-    btn.classList.remove("active");
-  });
-
-  hideAllTools();
+  const title = $("panelTitle");
+  const subtitle = $("panelSubtitle");
+  const input = $("mainInput");
+  const action = $("mainActionBtn");
 
   if (mode === "quick") {
     $("quickModeBtn")?.classList.add("active");
-    if ($("panelTitle")) $("panelTitle").textContent = "Quick Mode";
-    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Fast answers with simple wording.";
-    if ($("mainInput")) $("mainInput").placeholder = "Ask anything...";
-    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Send";
+    if (title) title.textContent = "Quick Mode";
+    if (subtitle) subtitle.textContent = "Fast answers with simple wording.";
+    if (input) input.placeholder = "Ask anything...";
+    if (action) action.textContent = "Send";
     showReady("Quick mode ready");
   }
 
   if (mode === "deep") {
     $("deepModeBtn")?.classList.add("active");
-    if ($("panelTitle")) $("panelTitle").textContent = "Deep Mode";
-    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Detailed answers with structure.";
-    if ($("mainInput")) $("mainInput").placeholder = "Ask a deeper question...";
-    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Send";
+    if (title) title.textContent = "Deep Mode";
+    if (subtitle) subtitle.textContent = "Detailed answers with structure.";
+    if (input) input.placeholder = "Ask a deeper question...";
+    if (action) action.textContent = "Send";
     showReady("Deep mode ready");
   }
 
   if (mode === "study") {
     $("studyModeBtn")?.classList.add("active");
-    if ($("panelTitle")) $("panelTitle").textContent = "Study Mode";
-    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Explain, notes or quiz.";
     if ($("studyTools")) $("studyTools").style.display = "grid";
-    if ($("mainInput")) $("mainInput").placeholder = "What do you want to learn?";
-    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Study";
+    if (title) title.textContent = "Study Mode";
+    if (subtitle) subtitle.textContent = "Explain, notes or quiz.";
+    if (input) input.placeholder = "What do you want to learn?";
+    if (action) action.textContent = "Study";
     showReady("Study mode ready");
   }
 
   if (mode === "page") {
     $("pageModeBtn")?.classList.add("active");
-    if ($("panelTitle")) $("panelTitle").textContent = "Page Mode";
-    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Read and understand this page.";
     if ($("pageTools")) $("pageTools").style.display = "grid";
-    if ($("mainInput")) $("mainInput").placeholder = "Ask about this page...";
-    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Ask page";
+    if (title) title.textContent = "Page Mode";
+    if (subtitle) subtitle.textContent = "Read and understand this page.";
+    if (input) input.placeholder = "Ask about this page...";
+    if (action) action.textContent = "Ask page";
     showReady("Press Read page first");
   }
 
   if (mode === "youtube") {
     $("youtubeModeBtn")?.classList.add("active");
-    if ($("panelTitle")) $("panelTitle").textContent = "YouTube Mode";
-    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Summarize YouTube videos.";
     if ($("youtubeTools")) $("youtubeTools").style.display = "grid";
-    if ($("mainInput")) $("mainInput").placeholder = "Ask about this video...";
-    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Analyze video";
+    if (title) title.textContent = "YouTube Mode";
+    if (subtitle) subtitle.textContent = "Summarize YouTube videos.";
+    if (input) input.placeholder = "Ask about this video...";
+    if (action) action.textContent = "Analyze video";
     showReady("Open YouTube and press Read page");
   }
 
   if (mode === "files") {
     $("filesModeBtn")?.classList.add("active");
-    if ($("panelTitle")) $("panelTitle").textContent = "Files Mode";
-    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Analyze PDFs and images.";
     if ($("filesTools")) $("filesTools").style.display = "grid";
-
-    if ($("pdfUploadBox")) {
-      $("pdfUploadBox").style.display =
-        activeFileTool === "pdf" || activeFileTool === "notes" ? "block" : "none";
-    }
-
-    if ($("imageUploadBox")) {
-      $("imageUploadBox").style.display =
-        activeFileTool === "image" ? "block" : "none";
-    }
-
-    if ($("mainInput")) $("mainInput").placeholder = "Ask about your file...";
-    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Analyze file";
+    if (title) title.textContent = "Files Mode";
+    if (subtitle) subtitle.textContent = "Analyze PDFs and images.";
+    if (input) input.placeholder = "Ask about your file...";
+    if (action) action.textContent = "Analyze file";
+    setFileTool(activeFileTool);
     showReady("Upload a PDF or image");
   }
 }
 
 function setStudyTool(tool) {
   activeStudyTool = tool;
-  const ids = { explain: "studyExplainBtn", notes: "studyNotesBtn", quiz: "studyQuizBtn" };
-  setActiveButton("#studyTools .tool-btn", ids[tool]);
+  clearToolActive("#studyTools .tool-btn");
+
+  if (tool === "explain") $("studyExplainBtn")?.classList.add("active");
+  if (tool === "notes") $("studyNotesBtn")?.classList.add("active");
+  if (tool === "quiz") $("studyQuizBtn")?.classList.add("active");
 }
 
 function setPageTool(tool) {
   activePageTool = tool;
-  const ids = { page: "pageReadBtn", selected: "pageSelectedBtn", summary: "pageSummaryBtn" };
-  setActiveButton("#pageTools .tool-btn", ids[tool]);
+  clearToolActive("#pageTools .tool-btn");
+
+  if (tool === "page") $("pageReadBtn")?.classList.add("active");
+  if (tool === "selected") $("pageSelectedBtn")?.classList.add("active");
+  if (tool === "summary") $("pageSummaryBtn")?.classList.add("active");
 }
 
 function setYoutubeTool(tool) {
   activeYoutubeTool = tool;
-  const ids = { summary: "ytSummaryBtn", notes: "ytNotesBtn", quiz: "ytQuizBtn" };
-  setActiveButton("#youtubeTools .tool-btn", ids[tool]);
+  clearToolActive("#youtubeTools .tool-btn");
+
+  if (tool === "summary") $("ytSummaryBtn")?.classList.add("active");
+  if (tool === "notes") $("ytNotesBtn")?.classList.add("active");
+  if (tool === "quiz") $("ytQuizBtn")?.classList.add("active");
 }
 
 function setFileTool(tool) {
   activeFileTool = tool;
-  const ids = { pdf: "filePdfBtn", image: "fileImageBtn", notes: "fileNotesBtn" };
-  setActiveButton("#filesTools .tool-btn", ids[tool]);
+  clearToolActive("#filesTools .tool-btn");
+
+  if (tool === "pdf") $("filePdfBtn")?.classList.add("active");
+  if (tool === "image") $("fileImageBtn")?.classList.add("active");
+  if (tool === "notes") $("fileNotesBtn")?.classList.add("active");
 
   if ($("pdfUploadBox")) {
-    $("pdfUploadBox").style.display =
-      tool === "pdf" || tool === "notes" ? "block" : "none";
+    $("pdfUploadBox").style.display = tool === "pdf" || tool === "notes" ? "block" : "none";
   }
 
   if ($("imageUploadBox")) {
@@ -692,38 +621,33 @@ function setFileTool(tool) {
   }
 }
 
-async function upgradeToPro() {
-  const token = await getAccessToken();
+function upgradeToPro() {
+  chrome.tabs.create({
+    url: PRO_LINK
+  });
 
-  if (!token) {
-    showAnswer("Auth", "Login required", "Please login first before upgrading.");
-    return;
-  }
-
-  chrome.tabs.create({ url: PRO_LINK });
-
-  showAnswer(
+  showResult(
     "Upgrade",
     "Stripe checkout opened",
-    "Complete payment in the new tab. After payment, return to Instant Answer and reopen the extension."
+    "Complete payment in the new tab. After payment, return and reopen Instant Answer."
   );
 }
 
 async function askBackend(input, mode) {
-  const token = await getAccessToken();
+  const token = await getToken();
 
   if (!token) {
     showAuthScreen();
-    showAuthMessage("Login first to use Instant Answer", "error");
+    showAuthMessage("Login first.", "error");
     return null;
   }
 
   if (hasReachedLimit()) {
-    showAnswer("Limit", "Free limit reached", "You have used your free answers today. Upgrade to Pro for more access.");
+    showResult("Limit", "Free limit reached", "You have used your free answers today. Upgrade to Pro for more access.");
     return null;
   }
 
-  const response = await fetch(ASK_URL, {
+  const res = await fetch(ASK_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -731,100 +655,104 @@ async function askBackend(input, mode) {
     },
     body: JSON.stringify({
       input,
-      mode,
-      userId: currentUser?.id || null,
-      email: currentUser?.email || null
+      mode
     })
   });
 
-  const data = await response.json();
+  const data = await res.json();
 
-  if (!response.ok || !data.answer) {
-    throw new Error(data.answer || data.error || "Could not get an answer.");
+  if (!res.ok || !data?.answer) {
+    throw new Error(data?.answer || data?.error || "Could not get answer.");
   }
 
   increaseUsage();
-  await checkProStatus();
-  await loadCloudHistory();
+  updateUsageUI();
+  await loadHistory();
 
   return data;
 }
 
 async function askPdfBackend(question = "") {
-  const token = await getAccessToken();
+  const token = await getToken();
 
   if (!token) {
     showAuthScreen();
-    showAuthMessage("Login first to use files", "error");
     return null;
   }
 
   if (!uploadedPdfFile) {
-    showAnswer("Files", "No PDF selected", "Upload a PDF first.");
+    showResult("Files", "No PDF selected", "Upload a PDF first.");
+    return null;
+  }
+
+  if (hasReachedLimit()) {
+    showResult("Limit", "Free limit reached", "Upgrade to Pro for more access.");
     return null;
   }
 
   const formData = new FormData();
   formData.append("pdf", uploadedPdfFile);
+  formData.append("question", question);
   formData.append("tool", activeFileTool === "notes" ? "notes" : "summary");
-  formData.append("question", question || "");
-  formData.append("userId", currentUser?.id || "");
-  formData.append("email", currentUser?.email || "");
 
-  const response = await fetch(ASK_PDF_URL, {
+  const res = await fetch(ASK_PDF_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
     body: formData
   });
 
-  const data = await response.json();
+  const data = await res.json();
 
-  if (!response.ok || !data.answer) {
-    throw new Error(data.answer || "Could not analyze PDF.");
+  if (!res.ok || !data?.answer) {
+    throw new Error(data?.answer || "Could not analyze PDF.");
   }
 
   increaseUsage();
-  await checkProStatus();
-  await loadCloudHistory();
+  updateUsageUI();
 
   return data;
 }
 
 async function askImageBackend(question = "") {
-  const token = await getAccessToken();
+  const token = await getToken();
 
   if (!token) {
     showAuthScreen();
-    showAuthMessage("Login first to use images", "error");
     return null;
   }
 
   if (!uploadedImageFile) {
-    showAnswer("Files", "No image selected", "Upload an image first.");
+    showResult("Files", "No image selected", "Upload an image first.");
+    return null;
+  }
+
+  if (hasReachedLimit()) {
+    showResult("Limit", "Free limit reached", "Upgrade to Pro for more access.");
     return null;
   }
 
   const formData = new FormData();
   formData.append("image", uploadedImageFile);
-  formData.append("question", question || "");
-  formData.append("userId", currentUser?.id || "");
-  formData.append("email", currentUser?.email || "");
+  formData.append("question", question);
 
-  const response = await fetch(ASK_IMAGE_URL, {
+  const res = await fetch(ASK_IMAGE_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
     body: formData
   });
 
-  const data = await response.json();
+  const data = await res.json();
 
-  if (!response.ok || !data.answer) {
-    throw new Error(data.answer || "Could not analyze image.");
+  if (!res.ok || !data?.answer) {
+    throw new Error(data?.answer || "Could not analyze image.");
   }
 
   increaseUsage();
-  await checkProStatus();
-  await loadCloudHistory();
+  updateUsageUI();
 
   return data;
 }
@@ -833,7 +761,10 @@ async function readCurrentPage() {
   try {
     if ($("pageStatus")) $("pageStatus").textContent = "Reading page...";
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true
+    });
 
     if (!tab?.id || !tab.url || tab.url.startsWith("chrome://")) {
       if ($("pageStatus")) $("pageStatus").textContent = "Unsupported page";
@@ -843,19 +774,12 @@ async function readCurrentPage() {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       function: () => {
-        const title = document.title || "Current page";
-        const url = location.href;
-        const text = document.body?.innerText || "";
-        const selected = window.getSelection()?.toString() || "";
-        const metaDescription =
-          document.querySelector("meta[name='description']")?.content || "";
-
         return {
-          title,
-          url,
-          selected,
-          text: text.slice(0, 14000),
-          metaDescription
+          title: document.title || "Current page",
+          url: location.href,
+          selected: window.getSelection()?.toString() || "",
+          text: document.body?.innerText?.slice(0, 14000) || "",
+          description: document.querySelector("meta[name='description']")?.content || ""
         };
       }
     });
@@ -863,17 +787,15 @@ async function readCurrentPage() {
     const page = results?.[0]?.result;
 
     if (!page?.text) {
-      if ($("pageStatus")) $("pageStatus").textContent = "No readable text";
+      if ($("pageStatus")) $("pageStatus").textContent = "No text found";
       return false;
     }
 
     currentPageTitle = page.title;
-    currentPageUrl = page.url;
 
-    if (activePageTool === "selected" && page.selected) {
-      currentPageText = page.selected;
-    } else {
-      currentPageText = `
+    const selectedText = page.selected?.trim();
+
+    currentPageText = `
 Title:
 ${page.title}
 
@@ -881,17 +803,17 @@ URL:
 ${page.url}
 
 Description:
-${page.metaDescription || "No description"}
+${page.description || "No description"}
 
-Visible content:
-${page.text}
+Content:
+${activePageTool === "selected" && selectedText ? selectedText : page.text}
 `;
-    }
 
-    if ($("pageStatus")) $("pageStatus").textContent = page.title.slice(0, 45);
+    if ($("pageStatus")) $("pageStatus").textContent = page.title.slice(0, 40);
+
     return true;
   } catch (error) {
-    console.error(error);
+    console.error("Read page error:", error);
     if ($("pageStatus")) $("pageStatus").textContent = "Page read failed";
     return false;
   }
@@ -905,29 +827,31 @@ function shouldUsePageContext(message = "") {
     "denne side",
     "hvad handler siden om",
     "forklar siden",
-    "summarize this page",
-    "what is this page about",
+    "artiklen",
     "article",
-    "artiklen"
-  ].some(keyword => text.includes(keyword));
+    "summarize this page",
+    "what is this page about"
+  ].some(word => text.includes(word));
 }
 
-function buildPrompt(userMessage = "") {
+function buildPrompt(message = "") {
   if (activeMode === "quick") {
     return `
 Mode: Quick
-Answer directly. Do not ask for more information unless absolutely necessary.
+Answer directly. Do not ask for more context unless impossible.
+
 User:
-${userMessage}
+${message}
 `;
   }
 
   if (activeMode === "deep") {
     return `
 Mode: Deep
-Give a detailed answer with structure and examples.
+Give a detailed, structured answer.
+
 User:
-${userMessage}
+${message}
 `;
   }
 
@@ -935,9 +859,10 @@ ${userMessage}
     return `
 Mode: Study
 Tool: ${activeStudyTool}
-Explain like a good teacher.
+Explain clearly like a teacher.
+
 User:
-${userMessage}
+${message}
 `;
   }
 
@@ -945,25 +870,25 @@ ${userMessage}
     return `
 Mode: Page
 Current page:
-${cleanText(currentPageText, 14000)}
+${currentPageText}
 
 User question:
-${userMessage || "Summarize and explain this page."}
+${message || "Summarize this page."}
 `;
   }
 
   if (activeMode === "youtube") {
     return `
 Mode: YouTube
-YouTube page:
-${cleanText(currentPageText, 14000)}
+Current YouTube page:
+${currentPageText}
 
 User question:
-${userMessage || "Summarize this YouTube video."}
+${message || "Summarize this YouTube video."}
 `;
   }
 
-  return userMessage;
+  return message;
 }
 
 async function runMainAction() {
@@ -971,27 +896,28 @@ async function runMainAction() {
 
   if (!currentUser) {
     showAuthScreen();
-    showAuthMessage("Login first to use Instant Answer", "error");
+    showAuthMessage("Login first.", "error");
     return;
   }
 
-  const userMessage = $("mainInput")?.value.trim() || "";
+  const message = $("mainInput")?.value.trim() || "";
 
-  if (!userMessage && !["page", "youtube", "files"].includes(activeMode)) return;
+  if (!message && !["page", "youtube", "files"].includes(activeMode)) return;
 
   isGenerating = true;
   showLoading("Thinking");
 
   try {
     let data = null;
-    const autoPage = activeMode === "quick" && shouldUsePageContext(userMessage);
+
+    const autoPage = activeMode === "quick" && shouldUsePageContext(message);
 
     if (activeMode === "page" || activeMode === "youtube" || autoPage) {
       if (!currentPageText) {
         const loaded = await readCurrentPage();
 
         if (!loaded) {
-          showAnswer("Page", "Could not read page", "Open a normal webpage or YouTube video and try again.");
+          showResult("Page", "Could not read page", "Open a normal webpage and try again.");
           return;
         }
       }
@@ -1000,18 +926,18 @@ async function runMainAction() {
         `
 Mode: Page
 Current page:
-${cleanText(currentPageText, 14000)}
+${currentPageText}
 
 User question:
-${userMessage || "Summarize this page."}
+${message || "Summarize this page."}
 `,
         "page"
       );
     } else if (activeMode === "files") {
-      if (activeFileTool === "image") data = await askImageBackend(userMessage);
-      else data = await askPdfBackend(userMessage);
+      if (activeFileTool === "image") data = await askImageBackend(message);
+      else data = await askPdfBackend(message);
     } else {
-      data = await askBackend(buildPrompt(userMessage), activeMode);
+      data = await askBackend(buildPrompt(message), activeMode);
     }
 
     if (!data) return;
@@ -1024,14 +950,18 @@ ${userMessage || "Summarize this page."}
       activeMode === "youtube" ? "YouTube Result" :
       "File Result";
 
-    showAnswer(activeMode, title, data.answer, data.sources || []);
+    showResult(activeMode, title, data.answer);
 
-    saveLocalHistory(activeMode, userMessage || currentPageTitle || uploadedPdfName || uploadedImageName, data.answer);
+    saveLocalHistory(
+      activeMode,
+      message || currentPageTitle || uploadedPdfName || uploadedImageName,
+      data.answer
+    );
 
     if ($("mainInput")) $("mainInput").value = "";
   } catch (error) {
-    console.error(error);
-    showAnswer("Error", "Something went wrong", error.message || "Try again.");
+    console.error("Run action error:", error);
+    showResult("Error", "Something went wrong", error.message || "Try again.");
   } finally {
     isGenerating = false;
   }
@@ -1042,7 +972,7 @@ async function handleReadPage() {
 
   if (!currentUser) {
     showAuthScreen();
-    showAuthMessage("Login first to read pages", "error");
+    showAuthMessage("Login first.", "error");
     return;
   }
 
@@ -1053,17 +983,17 @@ async function handleReadPage() {
     const loaded = await readCurrentPage();
 
     if (!loaded) {
-      showAnswer("Page", "Could not read page", "Open a normal webpage or YouTube video and try again.");
+      showResult("Page", "Could not read page", "Open a normal webpage and try again.");
       return;
     }
 
-    const label = activeMode === "youtube" ? "YouTube" : "Page";
+    showResult(
+      activeMode === "youtube" ? "YouTube" : "Page",
+      "Page loaded",
+      `Loaded: ${currentPageTitle}
 
-    showAnswer(label, "Page loaded", `Loaded: ${currentPageTitle}
-
-Now ask a question or press Send.`);
-  } catch (error) {
-    showAnswer("Error", "Page error", error.message || "Could not read page.");
+Now ask a question or press Send.`
+    );
   } finally {
     isGenerating = false;
   }
@@ -1076,8 +1006,8 @@ function handlePdfUpload(event) {
   uploadedPdfFile = file;
   uploadedPdfName = file.name;
 
-  if ($("pdfFileName")) $("pdfFileName").textContent = `Selected: ${uploadedPdfName}`;
-  showAnswer("Files", "PDF selected", `Selected: ${uploadedPdfName}`);
+  if ($("pdfFileName")) $("pdfFileName").textContent = `Selected: ${file.name}`;
+  showResult("Files", "PDF selected", `Selected: ${file.name}`);
 }
 
 function handleImageUpload(event) {
@@ -1087,68 +1017,81 @@ function handleImageUpload(event) {
   uploadedImageFile = file;
   uploadedImageName = file.name;
 
-  if ($("imageFileName")) $("imageFileName").textContent = `Selected: ${uploadedImageName}`;
-  showAnswer("Files", "Image selected", `Selected: ${uploadedImageName}`);
+  if ($("imageFileName")) $("imageFileName").textContent = `Selected: ${file.name}`;
+  showResult("Files", "Image selected", `Selected: ${file.name}`);
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  switchAuthMode("login");
-  showAuthScreen();
+function bindButtons() {
+  $("loginTabBtn").addEventListener("click", () => switchAuthMode("login"));
+  $("signupTabBtn").addEventListener("click", () => switchAuthMode("signup"));
+  $("authMainBtn").addEventListener("click", handleAuth);
+  $("forgotPasswordBtn").addEventListener("click", forgotPassword);
 
-  on("loginTabBtn", "click", () => switchAuthMode("login"));
-  on("signupTabBtn", "click", () => switchAuthMode("signup"));
-  on("authMainBtn", "click", handleAuth);
-  on("forgotPasswordBtn", "click", forgotPassword);
-  on("logoutBtn", "click", logout);
+  $("quickModeBtn").addEventListener("click", () => setMode("quick"));
+  $("deepModeBtn").addEventListener("click", () => setMode("deep"));
+  $("studyModeBtn").addEventListener("click", () => setMode("study"));
+  $("pageModeBtn").addEventListener("click", () => setMode("page"));
+  $("youtubeModeBtn").addEventListener("click", () => setMode("youtube"));
+  $("filesModeBtn").addEventListener("click", () => setMode("files"));
 
-  on("quickModeBtn", "click", () => setMode("quick"));
-  on("deepModeBtn", "click", () => setMode("deep"));
-  on("studyModeBtn", "click", () => setMode("study"));
-  on("pageModeBtn", "click", () => setMode("page"));
-  on("youtubeModeBtn", "click", () => setMode("youtube"));
-  on("filesModeBtn", "click", () => setMode("files"));
+  $("studyExplainBtn").addEventListener("click", () => setStudyTool("explain"));
+  $("studyNotesBtn").addEventListener("click", () => setStudyTool("notes"));
+  $("studyQuizBtn").addEventListener("click", () => setStudyTool("quiz"));
 
-  on("studyExplainBtn", "click", () => setStudyTool("explain"));
-  on("studyNotesBtn", "click", () => setStudyTool("notes"));
-  on("studyQuizBtn", "click", () => setStudyTool("quiz"));
+  $("pageReadBtn").addEventListener("click", () => setPageTool("page"));
+  $("pageSelectedBtn").addEventListener("click", () => setPageTool("selected"));
+  $("pageSummaryBtn").addEventListener("click", () => setPageTool("summary"));
 
-  on("pageReadBtn", "click", () => setPageTool("page"));
-  on("pageSelectedBtn", "click", () => setPageTool("selected"));
-  on("pageSummaryBtn", "click", () => setPageTool("summary"));
+  $("ytSummaryBtn").addEventListener("click", () => setYoutubeTool("summary"));
+  $("ytNotesBtn").addEventListener("click", () => setYoutubeTool("notes"));
+  $("ytQuizBtn").addEventListener("click", () => setYoutubeTool("quiz"));
 
-  on("ytSummaryBtn", "click", () => setYoutubeTool("summary"));
-  on("ytNotesBtn", "click", () => setYoutubeTool("notes"));
-  on("ytQuizBtn", "click", () => setYoutubeTool("quiz"));
+  $("filePdfBtn").addEventListener("click", () => setFileTool("pdf"));
+  $("fileImageBtn").addEventListener("click", () => setFileTool("image"));
+  $("fileNotesBtn").addEventListener("click", () => setFileTool("notes"));
 
-  on("filePdfBtn", "click", () => setFileTool("pdf"));
-  on("fileImageBtn", "click", () => setFileTool("image"));
-  on("fileNotesBtn", "click", () => setFileTool("notes"));
+  $("pdfFileInput").addEventListener("change", handlePdfUpload);
+  $("imageFileInput").addEventListener("change", handleImageUpload);
 
-  on("pdfFileInput", "change", handlePdfUpload);
-  on("imageFileInput", "change", handleImageUpload);
+  $("mainActionBtn").addEventListener("click", runMainAction);
+  $("readPageBtn").addEventListener("click", handleReadPage);
 
-  on("mainActionBtn", "click", runMainAction);
-  on("readPageBtn", "click", handleReadPage);
+  $("historyBtn").addEventListener("click", showHistory);
+  $("clearBtn").addEventListener("click", clearAll);
+  $("managePlanBtn").addEventListener("click", showPlanDashboard);
+  $("upgradeBtn").addEventListener("click", upgradeToPro);
+  $("logoutBtn").addEventListener("click", logout);
 
-  on("historyBtn", "click", showHistory);
-  on("clearBtn", "click", clearAll);
-  on("managePlanBtn", "click", showPlanDashboard);
-  on("upgradeBtn", "click", upgradeToPro);
-
-  on("mainInput", "keydown", event => {
+  $("mainInput").addEventListener("keydown", event => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       runMainAction();
     }
   });
 
-  on("authPasswordInput", "keydown", event => {
+  $("authPasswordInput").addEventListener("keydown", event => {
     if (event.key === "Enter") {
       event.preventDefault();
       handleAuth();
     }
   });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  bindButtons();
+  switchAuthMode("login");
+  showAuthScreen();
 
   initSupabase();
-  await initAuth();
+
+  if (sb) {
+    const session = await getSession();
+
+    if (session?.user) {
+      showMainApp(session.user);
+      setMode("quick");
+      await checkProStatus();
+      await loadMemory(true);
+    }
+  }
 });
