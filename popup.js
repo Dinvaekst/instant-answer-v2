@@ -14,7 +14,6 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlZ252eWljd3ZncXZlZnRyeWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTY5MzEsImV4cCI6MjA5NDMzMjkzMX0.YEdy7kzftyK3so29V6sgtj8xJDISdIdXRl5PfqRl464";
 
 const DAILY_LIMIT = 5;
-
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let activeMode = "quick";
@@ -43,6 +42,11 @@ let historyItems = JSON.parse(localStorage.getItem("ia_history") || "[]");
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function on(id, event, handler) {
+  const el = $(id);
+  if (el) el.addEventListener(event, handler);
 }
 
 function escapeHTML(text = "") {
@@ -74,14 +78,21 @@ function cleanText(text = "", limit = 14000) {
 }
 
 function showLoading(text = "Loading") {
-  $("result").innerHTML = `
-    <div class="loading">
-      ${escapeHTML(text)}
-    </div>
-  `;
+  const result = $("result");
+  if (!result) return;
+  result.innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
+}
+
+function showReady(text = "Ready") {
+  const result = $("result");
+  if (!result) return;
+  result.innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
 }
 
 function showAnswer(label, title, answer, sources = []) {
+  const result = $("result");
+  if (!result) return;
+
   const sourceHTML = Array.isArray(sources) && sources.length
     ? `
       <div class="source-box">
@@ -99,7 +110,7 @@ function showAnswer(label, title, answer, sources = []) {
     `
     : "";
 
-  $("result").innerHTML = `
+  result.innerHTML = `
     <div class="answer-box">
       <div class="answer-label">${escapeHTML(label)}</div>
       <div class="answer-title">${escapeHTML(title)}</div>
@@ -107,10 +118,6 @@ function showAnswer(label, title, answer, sources = []) {
       ${sourceHTML}
     </div>
   `;
-}
-
-function showReady(text = "Ready") {
-  $("result").innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
 }
 
 function showAuthMessage(message, type = "") {
@@ -152,10 +159,7 @@ function getRemainingUsage() {
 }
 
 function hasReachedLimit() {
-  return (
-    getUsage() >= DAILY_LIMIT &&
-    localStorage.getItem("instant_answer_pro") !== "true"
-  );
+  return getUsage() >= DAILY_LIMIT && localStorage.getItem("instant_answer_pro") !== "true";
 }
 
 function updateFreeStatus() {
@@ -182,17 +186,16 @@ async function checkProStatus() {
     });
 
     const data = await response.json();
-
     const isPro = data?.pro === true || data?.plan === "pro";
 
     if (isPro) {
       localStorage.setItem("instant_answer_pro", "true");
-      $("proStatus").textContent = "Pro";
-      $("upgradeBtn").textContent = "Pro";
+      if ($("proStatus")) $("proStatus").textContent = "Pro";
+      if ($("upgradeBtn")) $("upgradeBtn").textContent = "Pro";
     } else {
       localStorage.removeItem("instant_answer_pro");
       updateFreeStatus();
-      $("upgradeBtn").textContent = "Upgrade";
+      if ($("upgradeBtn")) $("upgradeBtn").textContent = "Upgrade";
     }
   } catch (error) {
     console.error("Pro check failed:", error);
@@ -203,19 +206,19 @@ async function checkProStatus() {
 function switchAuthMode(mode) {
   authMode = mode;
 
-  $("loginTabBtn").classList.remove("active");
-  $("signupTabBtn").classList.remove("active");
+  $("loginTabBtn")?.classList.remove("active");
+  $("signupTabBtn")?.classList.remove("active");
 
   if (mode === "login") {
-    $("loginTabBtn").classList.add("active");
-    $("authNameInput").classList.add("hidden");
-    $("authMainBtn").textContent = "Login";
-    $("forgotPasswordBtn").classList.remove("hidden");
+    $("loginTabBtn")?.classList.add("active");
+    $("authNameInput")?.classList.add("hidden");
+    if ($("authMainBtn")) $("authMainBtn").textContent = "Login";
+    $("forgotPasswordBtn")?.classList.remove("hidden");
   } else {
-    $("signupTabBtn").classList.add("active");
-    $("authNameInput").classList.remove("hidden");
-    $("authMainBtn").textContent = "Create account";
-    $("forgotPasswordBtn").classList.add("hidden");
+    $("signupTabBtn")?.classList.add("active");
+    $("authNameInput")?.classList.remove("hidden");
+    if ($("authMainBtn")) $("authMainBtn").textContent = "Create account";
+    $("forgotPasswordBtn")?.classList.add("hidden");
   }
 
   showAuthMessage("");
@@ -225,10 +228,10 @@ function showMainApp(user, session = null) {
   currentUser = user;
   currentSession = session;
 
-  $("authScreen").classList.add("hidden");
-  $("mainApp").classList.remove("hidden");
+  $("authScreen")?.classList.add("hidden");
+  $("mainApp")?.classList.remove("hidden");
 
-  $("userStatus").textContent = user?.email || "User";
+  if ($("userStatus")) $("userStatus").textContent = user?.email || "User";
   updateFreeStatus();
 }
 
@@ -238,15 +241,15 @@ function showAuthScreen() {
   userMemory = null;
   cloudHistory = [];
 
-  $("mainApp").classList.add("hidden");
-  $("authScreen").classList.remove("hidden");
+  $("mainApp")?.classList.add("hidden");
+  $("authScreen")?.classList.remove("hidden");
 }
 
 async function handleAuth() {
   try {
-    const email = $("authEmailInput").value.trim();
-    const password = $("authPasswordInput").value.trim();
-    const fullName = $("authNameInput").value.trim();
+    const email = $("authEmailInput")?.value.trim();
+    const password = $("authPasswordInput")?.value.trim();
+    const fullName = $("authNameInput")?.value.trim();
 
     if (!email || !password) {
       showAuthMessage("Missing email or password", "error");
@@ -266,7 +269,7 @@ async function handleAuth() {
         password,
         options: {
           data: {
-            full_name: fullName
+            full_name: fullName || email.split("@")[0]
           }
         }
       });
@@ -310,7 +313,7 @@ async function handleAuth() {
 }
 
 async function forgotPassword() {
-  const email = $("authEmailInput").value.trim();
+  const email = $("authEmailInput")?.value.trim();
 
   if (!email) {
     showAuthMessage("Enter your email first", "error");
@@ -329,7 +332,6 @@ async function forgotPassword() {
 
 async function logout() {
   await supabaseClient.auth.signOut();
-
   localStorage.removeItem("instant_answer_pro");
   showAuthScreen();
   showAuthMessage("Logged out", "success");
@@ -359,7 +361,7 @@ async function loadMemoryProfile(showWelcome = false) {
       currentUser?.email?.split("@")[0] ||
       "User";
 
-    $("userStatus").textContent = name;
+    if ($("userStatus")) $("userStatus").textContent = name;
 
     if (showWelcome) {
       showAnswer(
@@ -367,9 +369,7 @@ async function loadMemoryProfile(showWelcome = false) {
         `Welcome back ${name}`,
         `Your AI workspace is ready.
 
-Current plan: ${
-          localStorage.getItem("instant_answer_pro") === "true" ? "Pro" : "Free"
-        }
+Current plan: ${localStorage.getItem("instant_answer_pro") === "true" ? "Pro" : "Free"}
 Favorite mode: ${userMemory.favorite_mode || "quick"}
 Answer style: ${userMemory.answer_style || "clear and simple"}`
       );
@@ -504,7 +504,7 @@ Disabled for now.`
 }
 
 function clearAll() {
-  $("mainInput").value = "";
+  if ($("mainInput")) $("mainInput").value = "";
   historyItems = [];
   localStorage.removeItem("ia_history");
 
@@ -552,64 +552,71 @@ function setMode(mode) {
   hideAllTools();
 
   if (mode === "quick") {
-    $("quickModeBtn").classList.add("active");
-    $("panelTitle").textContent = "Quick Mode";
-    $("panelSubtitle").textContent = "Fast answers with simple wording.";
-    $("mainInput").placeholder = "Ask anything...";
-    $("mainActionBtn").textContent = "Send";
+    $("quickModeBtn")?.classList.add("active");
+    if ($("panelTitle")) $("panelTitle").textContent = "Quick Mode";
+    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Fast answers with simple wording.";
+    if ($("mainInput")) $("mainInput").placeholder = "Ask anything...";
+    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Send";
     showReady("Quick mode ready");
   }
 
   if (mode === "deep") {
-    $("deepModeBtn").classList.add("active");
-    $("panelTitle").textContent = "Deep Mode";
-    $("panelSubtitle").textContent = "Detailed answers with structure.";
-    $("mainInput").placeholder = "Ask a deeper question...";
-    $("mainActionBtn").textContent = "Send";
+    $("deepModeBtn")?.classList.add("active");
+    if ($("panelTitle")) $("panelTitle").textContent = "Deep Mode";
+    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Detailed answers with structure.";
+    if ($("mainInput")) $("mainInput").placeholder = "Ask a deeper question...";
+    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Send";
     showReady("Deep mode ready");
   }
 
   if (mode === "study") {
-    $("studyModeBtn").classList.add("active");
-    $("panelTitle").textContent = "Study Mode";
-    $("panelSubtitle").textContent = "Explain, notes or quiz.";
-    $("studyTools").style.display = "grid";
-    $("mainInput").placeholder = "What do you want to learn?";
-    $("mainActionBtn").textContent = "Study";
+    $("studyModeBtn")?.classList.add("active");
+    if ($("panelTitle")) $("panelTitle").textContent = "Study Mode";
+    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Explain, notes or quiz.";
+    if ($("studyTools")) $("studyTools").style.display = "grid";
+    if ($("mainInput")) $("mainInput").placeholder = "What do you want to learn?";
+    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Study";
     showReady("Study mode ready");
   }
 
   if (mode === "page") {
-    $("pageModeBtn").classList.add("active");
-    $("panelTitle").textContent = "Page Mode";
-    $("panelSubtitle").textContent = "Read and understand this page.";
-    $("pageTools").style.display = "grid";
-    $("mainInput").placeholder = "Ask about this page...";
-    $("mainActionBtn").textContent = "Ask page";
+    $("pageModeBtn")?.classList.add("active");
+    if ($("panelTitle")) $("panelTitle").textContent = "Page Mode";
+    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Read and understand this page.";
+    if ($("pageTools")) $("pageTools").style.display = "grid";
+    if ($("mainInput")) $("mainInput").placeholder = "Ask about this page...";
+    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Ask page";
     showReady("Press Read page first");
   }
 
   if (mode === "youtube") {
-    $("youtubeModeBtn").classList.add("active");
-    $("panelTitle").textContent = "YouTube Mode";
-    $("panelSubtitle").textContent = "Summarize YouTube videos.";
-    $("youtubeTools").style.display = "grid";
-    $("mainInput").placeholder = "Ask about this video...";
-    $("mainActionBtn").textContent = "Analyze video";
+    $("youtubeModeBtn")?.classList.add("active");
+    if ($("panelTitle")) $("panelTitle").textContent = "YouTube Mode";
+    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Summarize YouTube videos.";
+    if ($("youtubeTools")) $("youtubeTools").style.display = "grid";
+    if ($("mainInput")) $("mainInput").placeholder = "Ask about this video...";
+    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Analyze video";
     showReady("Open YouTube and press Read page");
   }
 
   if (mode === "files") {
-    $("filesModeBtn").classList.add("active");
-    $("panelTitle").textContent = "Files Mode";
-    $("panelSubtitle").textContent = "Analyze PDFs and images.";
-    $("filesTools").style.display = "grid";
-    $("pdfUploadBox").style.display =
-      activeFileTool === "pdf" || activeFileTool === "notes" ? "block" : "none";
-    $("imageUploadBox").style.display =
-      activeFileTool === "image" ? "block" : "none";
-    $("mainInput").placeholder = "Ask about your file...";
-    $("mainActionBtn").textContent = "Analyze file";
+    $("filesModeBtn")?.classList.add("active");
+    if ($("panelTitle")) $("panelTitle").textContent = "Files Mode";
+    if ($("panelSubtitle")) $("panelSubtitle").textContent = "Analyze PDFs and images.";
+    if ($("filesTools")) $("filesTools").style.display = "grid";
+
+    if ($("pdfUploadBox")) {
+      $("pdfUploadBox").style.display =
+        activeFileTool === "pdf" || activeFileTool === "notes" ? "block" : "none";
+    }
+
+    if ($("imageUploadBox")) {
+      $("imageUploadBox").style.display =
+        activeFileTool === "image" ? "block" : "none";
+    }
+
+    if ($("mainInput")) $("mainInput").placeholder = "Ask about your file...";
+    if ($("mainActionBtn")) $("mainActionBtn").textContent = "Analyze file";
     showReady("Upload a PDF or image");
   }
 }
@@ -661,9 +668,14 @@ function setFileTool(tool) {
 
   setActiveButton("#filesTools .tool-btn", ids[tool]);
 
-  $("pdfUploadBox").style.display =
-    tool === "pdf" || tool === "notes" ? "block" : "none";
-  $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
+  if ($("pdfUploadBox")) {
+    $("pdfUploadBox").style.display =
+      tool === "pdf" || tool === "notes" ? "block" : "none";
+  }
+
+  if ($("imageUploadBox")) {
+    $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
+  }
 }
 
 async function upgradeToPro() {
@@ -823,7 +835,7 @@ async function askImageBackend(question = "") {
 
 async function readCurrentPage() {
   try {
-    $("pageStatus").textContent = "Reading page...";
+    if ($("pageStatus")) $("pageStatus").textContent = "Reading page...";
 
     const [tab] = await chrome.tabs.query({
       active: true,
@@ -831,7 +843,7 @@ async function readCurrentPage() {
     });
 
     if (!tab?.id || !tab.url || tab.url.startsWith("chrome://")) {
-      $("pageStatus").textContent = "Unsupported page";
+      if ($("pageStatus")) $("pageStatus").textContent = "Unsupported page";
       return false;
     }
 
@@ -858,7 +870,7 @@ async function readCurrentPage() {
     const page = results?.[0]?.result;
 
     if (!page?.text) {
-      $("pageStatus").textContent = "No readable text";
+      if ($("pageStatus")) $("pageStatus").textContent = "No readable text";
       return false;
     }
 
@@ -883,26 +895,39 @@ ${page.text}
 `;
     }
 
-    $("pageStatus").textContent = page.title.slice(0, 45);
+    if ($("pageStatus")) $("pageStatus").textContent = page.title.slice(0, 45);
     return true;
   } catch (error) {
     console.error(error);
-    $("pageStatus").textContent = "Page read failed";
+    if ($("pageStatus")) $("pageStatus").textContent = "Page read failed";
     return false;
   }
 }
 
+function shouldUsePageContext(message = "") {
+  const text = message.toLowerCase();
+
+  return [
+    "siden",
+    "denne side",
+    "hvad handler siden om",
+    "forklar siden",
+    "summarize this page",
+    "what is this page about",
+    "article",
+    "artiklen"
+  ].some(keyword => text.includes(keyword));
+}
+
 function buildPrompt(userMessage = "") {
   if (activeMode === "quick") {
-  return `
+    return `
 Mode: Quick
 
 IMPORTANT RULES:
 - Always answer directly.
 - Never ask for more information unless absolutely necessary.
-- If the user asks "what is this page about", summarize immediately.
 - Sound confident and useful.
-- Do not act confused.
 - Give the actual answer first.
 - Use short but smart explanations.
 - No filler text.
@@ -910,7 +935,8 @@ IMPORTANT RULES:
 User:
 ${userMessage}
 `;
-}
+  }
+
   if (activeMode === "deep") {
     return `
 Mode: Deep
@@ -976,11 +1002,9 @@ async function runMainAction() {
     return;
   }
 
-  const userMessage = $("mainInput").value.trim();
+  const userMessage = $("mainInput")?.value.trim() || "";
 
-  if (!userMessage && !["page", "youtube", "files"].includes(activeMode)) {
-    return;
-  }
+  if (!userMessage && !["page", "youtube", "files"].includes(activeMode)) return;
 
   isGenerating = true;
   showLoading("Thinking");
@@ -988,7 +1012,11 @@ async function runMainAction() {
   try {
     let data = null;
 
-    if (activeMode === "page" || activeMode === "youtube") {
+    const autoPage =
+      activeMode === "quick" &&
+      shouldUsePageContext(userMessage);
+
+    if (activeMode === "page" || activeMode === "youtube" || autoPage) {
       if (!currentPageText) {
         const loaded = await readCurrentPage();
 
@@ -1002,7 +1030,17 @@ async function runMainAction() {
         }
       }
 
-      data = await askBackend(buildPrompt(userMessage), activeMode);
+      data = await askBackend(
+        `
+Mode: Page
+Current page:
+${cleanText(currentPageText, 14000)}
+
+User question:
+${userMessage || "Summarize this page."}
+`,
+        "page"
+      );
     } else if (activeMode === "files") {
       if (activeFileTool === "image") {
         data = await askImageBackend(userMessage);
@@ -1031,7 +1069,7 @@ async function runMainAction() {
       data.answer
     );
 
-    $("mainInput").value = "";
+    if ($("mainInput")) $("mainInput").value = "";
   } catch (error) {
     console.error(error);
     showAnswer("Error", "Something went wrong", error.message || "Try again.");
@@ -1087,7 +1125,7 @@ function handlePdfUpload(event) {
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
     uploadedPdfFile = null;
     uploadedPdfName = "";
-    $("pdfFileName").textContent = "Please choose a PDF";
+    if ($("pdfFileName")) $("pdfFileName").textContent = "Please choose a PDF";
     showAnswer("Files", "Wrong file", "Please upload a PDF file.");
     return;
   }
@@ -1095,7 +1133,7 @@ function handlePdfUpload(event) {
   uploadedPdfFile = file;
   uploadedPdfName = file.name;
 
-  $("pdfFileName").textContent = `Selected: ${uploadedPdfName}`;
+  if ($("pdfFileName")) $("pdfFileName").textContent = `Selected: ${uploadedPdfName}`;
   showAnswer("Files", "PDF selected", `Selected: ${uploadedPdfName}`);
 }
 
@@ -1108,7 +1146,7 @@ function handleImageUpload(event) {
   if (!validTypes.includes(file.type)) {
     uploadedImageFile = null;
     uploadedImageName = "";
-    $("imageFileName").textContent = "Choose PNG, JPG or WEBP";
+    if ($("imageFileName")) $("imageFileName").textContent = "Choose PNG, JPG or WEBP";
     showAnswer("Files", "Wrong file", "Please upload PNG, JPG or WEBP.");
     return;
   }
@@ -1116,7 +1154,7 @@ function handleImageUpload(event) {
   uploadedImageFile = file;
   uploadedImageName = file.name;
 
-  $("imageFileName").textContent = `Selected: ${uploadedImageName}`;
+  if ($("imageFileName")) $("imageFileName").textContent = `Selected: ${uploadedImageName}`;
   showAnswer("Files", "Image selected", `Selected: ${uploadedImageName}`);
 }
 
@@ -1124,58 +1162,54 @@ document.addEventListener("DOMContentLoaded", async () => {
   switchAuthMode("login");
   showAuthScreen();
 
-  $("loginTabBtn").onclick = () => switchAuthMode("login");
-  $("signupTabBtn").onclick = () => switchAuthMode("signup");
-  $("authMainBtn").onclick = handleAuth;
-  $("forgotPasswordBtn").onclick = forgotPassword;
-  $("logoutBtn").onclick = logout;
+  on("loginTabBtn", "click", () => switchAuthMode("login"));
+  on("signupTabBtn", "click", () => switchAuthMode("signup"));
+  on("authMainBtn", "click", handleAuth);
+  on("forgotPasswordBtn", "click", forgotPassword);
+  on("logoutBtn", "click", logout);
 
-  $("quickModeBtn").onclick = () => setMode("quick");
-  $("deepModeBtn").onclick = () => setMode("deep");
-  $("studyModeBtn").onclick = () => setMode("study");
-  $("pageModeBtn").onclick = () => setMode("page");
-  $("youtubeModeBtn").onclick = () => setMode("youtube");
-  $("filesModeBtn").onclick = () => setMode("files");
+  on("quickModeBtn", "click", () => setMode("quick"));
+  on("deepModeBtn", "click", () => setMode("deep"));
+  on("studyModeBtn", "click", () => setMode("study"));
+  on("pageModeBtn", "click", () => setMode("page"));
+  on("youtubeModeBtn", "click", () => setMode("youtube"));
+  on("filesModeBtn", "click", () => setMode("files"));
 
-  $("studyExplainBtn").onclick = () => setStudyTool("explain");
-  $("studyNotesBtn").onclick = () => setStudyTool("notes");
-  $("studyQuizBtn").onclick = () => setStudyTool("quiz");
+  on("studyExplainBtn", "click", () => setStudyTool("explain"));
+  on("studyNotesBtn", "click", () => setStudyTool("notes"));
+  on("studyQuizBtn", "click", () => setStudyTool("quiz"));
 
-  $("pageReadBtn").onclick = () => setPageTool("page");
-  $("pageSelectedBtn").onclick = () => setPageTool("selected");
-  $("pageSummaryBtn").onclick = () => setPageTool("summary");
+  on("pageReadBtn", "click", () => setPageTool("page"));
+  on("pageSelectedBtn", "click", () => setPageTool("selected"));
+  on("pageSummaryBtn", "click", () => setPageTool("summary"));
 
-  $("ytSummaryBtn").onclick = () => setYoutubeTool("summary");
-  $("ytNotesBtn").onclick = () => setYoutubeTool("notes");
-  $("ytQuizBtn").onclick = () => setYoutubeTool("quiz");
+  on("ytSummaryBtn", "click", () => setYoutubeTool("summary"));
+  on("ytNotesBtn", "click", () => setYoutubeTool("notes"));
+  on("ytQuizBtn", "click", () => setYoutubeTool("quiz"));
 
-  $("filePdfBtn").onclick = () => setFileTool("pdf");
-  $("fileImageBtn").onclick = () => setFileTool("image");
-  $("fileNotesBtn").onclick = () => setFileTool("notes");
+  on("filePdfBtn", "click", () => setFileTool("pdf"));
+  on("fileImageBtn", "click", () => setFileTool("image"));
+  on("fileNotesBtn", "click", () => setFileTool("notes"));
 
-  $("pdfFileInput").onchange = handlePdfUpload;
-  $("imageFileInput").onchange = handleImageUpload;
+  on("pdfFileInput", "change", handlePdfUpload);
+  on("imageFileInput", "change", handleImageUpload);
 
-  $("mainActionBtn").onclick = runMainAction;
-  $("readPageBtn").onclick = handleReadPage;
+  on("mainActionBtn", "click", runMainAction);
+  on("readPageBtn", "click", handleReadPage);
 
-  $("historyBtn").onclick = showHistory;
-  $("clearBtn").onclick = clearAll;
+  on("historyBtn", "click", showHistory);
+  on("clearBtn", "click", clearAll);
+  on("managePlanBtn", "click", showPlanDashboard);
+  on("upgradeBtn", "click", upgradeToPro);
 
-  if ($("managePlanBtn")) {
-    $("managePlanBtn").onclick = showPlanDashboard;
-  }
-
-  $("upgradeBtn").onclick = upgradeToPro;
-
-  $("mainInput").addEventListener("keydown", event => {
+  on("mainInput", "keydown", event => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       runMainAction();
     }
   });
 
-  $("authPasswordInput").addEventListener("keydown", event => {
+  on("authPasswordInput", "keydown", event => {
     if (event.key === "Enter") {
       event.preventDefault();
       handleAuth();
