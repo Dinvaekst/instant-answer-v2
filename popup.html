@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Instant Answer</title>
-
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--green:#b7ff4a;--bg:#050505;--card:#1c1c1c;--muted:#b8b8b8;--border:rgba(255,255,255,.12);--danger:#ff6b6b}
@@ -12,108 +11,63 @@ body{width:430px;height:620px;overflow:hidden;font-family:Arial,sans-serif;backg
 .app{height:100%;border-radius:28px;padding:16px;background:radial-gradient(circle at top left,rgba(183,255,74,.16),transparent 32%),linear-gradient(180deg,#111,#050505);border:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
 button{border:none;cursor:pointer;font-family:Arial,sans-serif}
 .hidden{display:none!important}
-
-.auth-screen{height:100%;display:flex;flex-direction:column;justify-content:center;gap:16px}
-.auth-brand,.brand{font-size:16px;font-weight:900}
-.auth-brand span,.brand span,.auth-title span,.hero h1 span{color:var(--green)}
-.auth-title{font-size:42px;line-height:.95;font-weight:950;letter-spacing:-2px}
-.auth-subtitle,.subtitle,.panel-subtitle{color:var(--muted);font-size:13px;line-height:1.4}
-.auth-box{padding:18px;border-radius:24px;background:rgba(255,255,255,.055);border:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
-.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.auth-tab,.small-btn,.mode-tab,.tool-btn,.secondary-btn{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
-.auth-tab{padding:13px;border-radius:17px;font-weight:900}
-.auth-tab.active,.primary-btn,.upgrade-btn,.mode-tab.active,.tool-btn.active{background:var(--green);color:#050505}
-.auth-input,textarea{width:100%;outline:none;border:1px solid var(--border);background:#242424;color:white;border-radius:17px;padding:14px;font-size:14px}
-.auth-primary{padding:14px;border-radius:18px;background:var(--green);font-weight:950;font-size:15px}
-.auth-link{background:transparent;color:var(--green);font-weight:900;text-align:left;font-size:13px}
-.auth-message{min-height:18px;font-size:12px;color:var(--muted)}
-.auth-message.error{color:var(--danger)}
-.auth-message.success{color:var(--green)}
-
 .main-app{height:100%;display:flex;flex-direction:column;gap:10px;min-height:0}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .top-actions{display:flex;gap:6px;align-items:center}
-.small-btn,.upgrade-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap}
+.small-btn,.upgrade-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
+.upgrade-btn{background:var(--green);color:#050505;border:none}
+.brand{font-size:16px;font-weight:900}
+.brand span{color:var(--green)}
 .hero h1{font-size:42px;line-height:.9;font-weight:950;letter-spacing:-2px}
+.hero h1 span{color:var(--green)}
+.subtitle{color:var(--muted);font-size:13px;line-height:1.4}
 .status-row{display:flex;gap:8px;margin-top:10px}
 .status-pill{padding:9px 11px;border-radius:999px;background:var(--green);color:#050505;font-size:11px;font-weight:900;white-space:nowrap}
 #userStatus,#pageStatus{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border);overflow:hidden;text-overflow:ellipsis}
 #userStatus{max-width:155px}
 #pageStatus{flex:1}
-
 .mode-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-.mode-tab{padding:10px 4px;border-radius:15px;font-size:10px;font-weight:900}
-
+.mode-tab{padding:10px 4px;border-radius:15px;font-size:10px;font-weight:900;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
+.mode-tab.active{background:var(--green);color:#050505;border:none}
 .panel{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;border-radius:24px;padding:14px;background:rgba(255,255,255,.055);border:1px solid var(--border)}
 .panel-title{font-size:23px;font-weight:950}
+.panel-subtitle{color:var(--muted);font-size:13px;line-height:1.4}
 #result{flex:1;min-height:100px;overflow-y:auto;margin:10px 0;padding:14px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid var(--border);font-size:14px;line-height:1.6}
 .answer-label{font-size:11px;text-transform:uppercase;color:var(--green);font-weight:950;margin-bottom:8px}
 .answer-title{font-size:20px;font-weight:950;margin-bottom:8px}
 .answer-content{white-space:pre-wrap;word-break:break-word}
 .loading{height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .mode-tools{display:none;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
-.tool-btn{padding:9px;border-radius:14px;font-size:10px;font-weight:900}
+.tool-btn{padding:9px;border-radius:14px;font-size:10px;font-weight:900;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
+.tool-btn.active{background:var(--green);color:#050505;border:none}
 .file-box{display:none;margin-bottom:8px;padding:10px;border-radius:16px;background:rgba(255,255,255,.045);border:1px dashed var(--border)}
 .file-box input{width:100%;color:white;font-size:11px}
 #pdfFileName,#imageFileName{margin-top:6px;color:var(--muted);font-size:11px}
-textarea{height:58px;resize:none}
+textarea{width:100%;outline:none;border:1px solid var(--border);background:#242424;color:white;border-radius:17px;padding:14px;font-size:14px;height:58px;resize:none;font-family:Arial,sans-serif}
 .action-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.primary-btn,.secondary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px}
-.history-item,.source-box{margin-top:10px;padding:10px;border-radius:16px;background:rgba(255,255,255,.055);border:1px solid var(--border)}
+.primary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:var(--green);color:#050505}
+.secondary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:999px}
 </style>
 </head>
-
 <body>
 <div class="app">
-
-  <div id="authScreen" class="auth-screen">
-    <div class="auth-brand">Instant <span>Answer</span></div>
-
-    <div>
-      <div class="auth-title">Your AI<br><span>workspace</span></div>
-      <div class="auth-subtitle">Login to use Instant Answer, save your history and keep your AI memory across devices.</div>
-    </div>
-
-    <div class="auth-box">
-      <div class="auth-tabs">
-        <button id="loginTabBtn" class="auth-tab active" type="button">Login</button>
-        <button id="signupTabBtn" class="auth-tab" type="button">Sign up</button>
-      </div>
-
-      <input id="authNameInput" class="auth-input hidden" type="text" placeholder="Full name" />
-      <input id="authEmailInput" class="auth-input" type="email" placeholder="Email address" />
-      <input id="authPasswordInput" class="auth-input" type="password" placeholder="Password" />
-
-      <button id="authMainBtn" class="auth-primary" type="button">Login</button>
-      <button id="forgotPasswordBtn" class="auth-link" type="button">Forgot password?</button>
-
-      <div id="authMessage" class="auth-message"></div>
-    </div>
-  </div>
-
-  <div id="mainApp" class="main-app hidden">
-
+  <div id="mainApp" class="main-app">
     <div class="top">
       <div class="brand">Instant <span>Answer</span></div>
-
       <div class="top-actions">
-        <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade</button>
-        <button id="managePlanBtn" class="small-btn" type="button">Plan</button>
+        <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade ⚡</button>
         <button id="historyBtn" class="small-btn" type="button">History</button>
         <button id="clearBtn" class="small-btn" type="button">Clear</button>
-        <button id="logoutBtn" class="small-btn" type="button">Logout</button>
       </div>
     </div>
 
     <div class="hero">
       <h1>Fast AI<br><span>for work</span></h1>
       <div class="subtitle">Quick answers, study notes, page reading, YouTube summaries and file analysis.</div>
-
       <div class="status-row">
         <div id="proStatus" class="status-pill">Free</div>
-        <div id="userStatus" class="status-pill">User</div>
         <div id="pageStatus" class="status-pill">Ready</div>
       </div>
     </div>
@@ -165,7 +119,7 @@ textarea{height:58px;resize:none}
       </div>
 
       <div id="imageUploadBox" class="file-box">
-        <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
+        <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp" />
         <div id="imageFileName">No image selected</div>
       </div>
 
@@ -178,8 +132,6 @@ textarea{height:58px;resize:none}
     </div>
   </div>
 </div>
-
-<script src="supabase.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
