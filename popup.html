@@ -13,19 +13,18 @@ button{border:none;cursor:pointer;font-family:Arial,sans-serif}
 .hidden{display:none!important}
 .main-app{height:100%;display:flex;flex-direction:column;gap:10px;min-height:0}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.top-actions{display:flex;gap:6px;align-items:center}
-.small-btn,.upgrade-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
-.upgrade-btn{background:var(--green);color:#050505;border:none}
+.top-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.small-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
+.upgrade-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:var(--green);color:#050505;border:none}
+.already-paid-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:rgba(183,255,74,.15);color:var(--green);border:1px solid var(--green)}
 .brand{font-size:16px;font-weight:900}
 .brand span{color:var(--green)}
 .hero h1{font-size:42px;line-height:.9;font-weight:950;letter-spacing:-2px}
 .hero h1 span{color:var(--green)}
 .subtitle{color:var(--muted);font-size:13px;line-height:1.4}
-.status-row{display:flex;gap:8px;margin-top:10px}
+.status-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .status-pill{padding:9px 11px;border-radius:999px;background:var(--green);color:#050505;font-size:11px;font-weight:900;white-space:nowrap}
-#userStatus,#pageStatus{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border);overflow:hidden;text-overflow:ellipsis}
-#userStatus{max-width:155px}
-#pageStatus{flex:1}
+#pageStatus{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border);flex:1}
 .mode-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 .mode-tab{padding:10px 4px;border-radius:15px;font-size:10px;font-weight:900;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
 .mode-tab.active{background:var(--green);color:#050505;border:none}
@@ -45,7 +44,7 @@ button{border:none;cursor:pointer;font-family:Arial,sans-serif}
 #pdfFileName,#imageFileName{margin-top:6px;color:var(--muted);font-size:11px}
 textarea{width:100%;outline:none;border:1px solid var(--border);background:#242424;color:white;border-radius:17px;padding:14px;font-size:14px;height:58px;resize:none;font-family:Arial,sans-serif}
 .action-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.primary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:var(--green);color:#050505}
+.primary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:var(--green);color:#050505;border:none}
 .secondary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:999px}
@@ -58,6 +57,7 @@ textarea{width:100%;outline:none;border:1px solid var(--border);background:#2424
       <div class="brand">Instant <span>Answer</span></div>
       <div class="top-actions">
         <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade ⚡</button>
+        <button id="alreadyPaidBtn" class="already-paid-btn" type="button">Already paid?</button>
         <button id="historyBtn" class="small-btn" type="button">History</button>
         <button id="clearBtn" class="small-btn" type="button">Clear</button>
       </div>

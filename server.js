@@ -14,7 +14,6 @@ dotenv.config();
 const app = express();
 app.use(cors());
 
-// ✅ Raw body for Stripe webhook MUST come before express.json()
 app.use("/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "8mb" }));
 
@@ -254,21 +253,16 @@ app.get("/", (req, res) => {
   });
 });
 
-// ✅ NEW: No-auth ask endpoint for extension without login
 app.post("/ask", async (req, res) => {
   try {
     const { input, mode = "quick" } = req.body || {};
-
     if (!input || typeof input !== "string") {
       return res.status(400).json({ error: "Missing input", answer: "Input mangler." });
     }
-
     const finalMode = detectMode(mode);
     const systemPrompt = buildSystemPrompt(finalMode);
     const prompt = buildUserPrompt({ input, mode: finalMode, memoryText: "" });
-
     const ai = await routeAI({ prompt, systemPrompt, mode: finalMode, isPro: false });
-
     res.json({ answer: ai.answer, provider: ai.provider, mode: finalMode });
   } catch (error) {
     console.error("Ask error:", error);
@@ -276,28 +270,22 @@ app.post("/ask", async (req, res) => {
   }
 });
 
-// ✅ NEW: No-auth PDF endpoint
 app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
   try {
     const { tool = "summary", question = "" } = req.body || {};
     if (!req.file) return res.status(400).json({ error: "Missing PDF", answer: "Upload en PDF først." });
-
     let parsed;
     if (typeof pdfParse.default === "function") parsed = await pdfParse.default(req.file.buffer);
     else if (typeof pdfParse === "function") parsed = await pdfParse(req.file.buffer);
     else parsed = await pdfParse.pdf(req.file.buffer);
-
     const pdfText = cleanText(parsed.text || "");
     if (!pdfText || pdfText.length < 20) return res.status(400).json({ error: "Empty PDF", answer: "Kunne ikke læse PDF." });
-
     const mode = "files";
     const systemPrompt = buildSystemPrompt(mode);
     const prompt = buildUserPrompt({
-      mode,
-      memoryText: "",
+      mode, memoryText: "",
       input: `File type: PDF\nTool: ${tool}\n\nUser question:\n${question || "Analyze this PDF."}\n\nPDF text:\n${limitText(pdfText, 14000)}`
     });
-
     const ai = await routeAI({ prompt, systemPrompt, mode, isPro: false });
     res.json({ answer: ai.answer, provider: ai.provider, fileName: req.file.originalname, tool });
   } catch (error) {
@@ -306,16 +294,13 @@ app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
   }
 });
 
-// ✅ NEW: No-auth image endpoint
 app.post("/ask-image", upload.single("image"), async (req, res) => {
   try {
     const { question = "" } = req.body || {};
     if (!req.file) return res.status(400).json({ error: "Missing image", answer: "Upload et billede først." });
     if (!openai) return res.status(500).json({ error: "OpenAI key missing", answer: "Image analyse kræver OpenAI API key." });
-
     const mimeType = req.file.mimetype || "image/png";
     const base64 = req.file.buffer.toString("base64");
-
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.2,
@@ -325,7 +310,6 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
         { role: "user", content: [{ type: "text", text: question || "Analyze this image." }, { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }] }
       ]
     });
-
     const answer = completion.choices?.[0]?.message?.content?.trim() || "Kunne ikke analysere billedet.";
     res.json({ answer, provider: "openai-vision", fileName: req.file.originalname });
   } catch (error) {
@@ -334,13 +318,10 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
   }
 });
 
-// ✅ NEW: Stripe webhook — auto activates Pro
 app.post("/webhook", async (req, res) => {
   if (!stripe) return res.status(400).send("Stripe not configured");
-
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
   let event;
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
@@ -348,11 +329,9 @@ app.post("/webhook", async (req, res) => {
     console.error("Webhook signature error:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const userId = session.client_reference_id;
-
     if (userId && supabase) {
       await supabase.from("profiles").update({
         plan: "pro",
@@ -361,37 +340,30 @@ app.post("/webhook", async (req, res) => {
       console.log(`Pro activated for user: ${userId}`);
     }
   }
-
   if (event.type === "customer.subscription.deleted") {
     const subscription = event.data.object;
     const customerId = subscription.customer;
-
     if (customerId && supabase) {
       await supabase.from("profiles").update({ plan: "free" }).eq("stripe_customer_id", customerId);
       console.log(`Pro removed for customer: ${customerId}`);
     }
   }
-
   res.json({ received: true });
 });
 
-// ✅ UPDATED: Success page with Activate Pro button
 app.get("/success", async (req, res) => {
   const sessionId = req.query.session_id;
   if (!stripe) return res.send("Stripe is not configured.");
   if (!sessionId) return res.send("Missing session id.");
-
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const userId = session.client_reference_id;
-
     if (userId && supabase) {
       await supabase.from("profiles").update({
         plan: "pro",
         stripe_customer_id: typeof session.customer === "string" ? session.customer : session.customer?.id || null
       }).eq("id", userId);
     }
-
     res.send(`
       <html>
         <head>
@@ -472,6 +444,31 @@ app.get("/history", async (req, res) => {
     res.json({ history: data || [] });
   } catch (error) {
     res.status(500).json({ error: "Could not fetch history" });
+  }
+});
+
+// ✅ NEW: Latest session endpoint — checks if there's a recent payment (last 30 min)
+app.get("/latest-session", async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ pro: false, error: "Stripe not configured" });
+
+    const thirtyMinutesAgo = Math.floor(Date.now() / 1000) - 30 * 60;
+
+    const sessions = await stripe.checkout.sessions.list({
+      limit: 5,
+      created: { gte: thirtyMinutesAgo }
+    });
+
+    const completed = sessions.data.find(s => s.payment_status === "paid");
+
+    if (!completed) {
+      return res.json({ pro: false });
+    }
+
+    res.json({ pro: true, session_id: completed.id });
+  } catch (error) {
+    console.error("Latest session error:", error);
+    res.status(500).json({ pro: false, error: error.message });
   }
 });
 

@@ -2,7 +2,7 @@ const BACKEND_URL = "https://instant-answer-backend-clean.onrender.com";
 const ASK_URL = `${BACKEND_URL}/ask`;
 const ASK_PDF_URL = `${BACKEND_URL}/ask-pdf`;
 const ASK_IMAGE_URL = `${BACKEND_URL}/ask-image`;
-
+const VERIFY_URL = `${BACKEND_URL}/verify-session`;
 const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
 const DAILY_LIMIT = 5;
 
@@ -21,7 +21,6 @@ let uploadedImageName = "";
 let localHistory = JSON.parse(localStorage.getItem("ia_history") || "[]");
 
 function $(id) { return document.getElementById(id); }
-
 function safeText(value = "") { return String(value ?? ""); }
 
 function escapeHTML(value = "") {
@@ -63,36 +62,44 @@ function showReady(text = "Ready") {
   result.innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
 }
 
-// ── Usage tracking ──────────────────────────────────────
+// ── Pro / Usage ──────────────────────────────────────────
 function getUsageKey() {
   const date = new Date().toISOString().slice(0, 10);
   return `ia_usage_${date}`;
 }
 
-function getUsage() {
-  return Number(localStorage.getItem(getUsageKey()) || 0);
-}
+function getUsage() { return Number(localStorage.getItem(getUsageKey()) || 0); }
 
 function increaseUsage() {
   if (isPro()) return;
   localStorage.setItem(getUsageKey(), String(getUsage() + 1));
 }
 
-function isPro() {
-  return localStorage.getItem("instant_answer_pro") === "true";
-}
+function isPro() { return localStorage.getItem("instant_answer_pro") === "true"; }
 
-function hasReachedLimit() {
-  return !isPro() && getUsage() >= DAILY_LIMIT;
+function hasReachedLimit() { return !isPro() && getUsage() >= DAILY_LIMIT; }
+
+function activatePro() {
+  localStorage.setItem("instant_answer_pro", "true");
+  updateUsageUI();
+  const upgradeBtn = $("upgradeBtn");
+  const alreadyPaidBtn = $("alreadyPaidBtn");
+  if (upgradeBtn) { upgradeBtn.textContent = "Pro ✓"; upgradeBtn.style.background = "var(--green)"; }
+  if (alreadyPaidBtn) alreadyPaidBtn.classList.add("hidden");
+  showResult("Pro", "Pro activated! ⚡", "Welcome to Instant Answer Pro!\n\nYou now have unlimited answers.");
 }
 
 function updateUsageUI() {
   const proStatus = $("proStatus");
   if (!proStatus) return;
-  proStatus.textContent = isPro() ? "Pro ✓" : `Free · ${Math.max(0, DAILY_LIMIT - getUsage())}/${DAILY_LIMIT}`;
+  if (isPro()) {
+    proStatus.textContent = "Pro ✓";
+  } else {
+    proStatus.textContent = `Free · ${Math.max(0, DAILY_LIMIT - getUsage())}/${DAILY_LIMIT}`;
+  }
 }
 
-// ── Upgrade ─────────────────────────────────────────────
+// ── Upgrade ──────────────────────────────────────────────
 function upgradeToPro() {
   try {
     if (typeof chrome !== "undefined" && chrome?.tabs?.create) {
@@ -100,13 +107,39 @@ function upgradeToPro() {
     } else {
       window.open(PRO_LINK, "_blank");
     }
-    showResult("Upgrade", "Stripe checkout opened", "Complete payment in the new tab.\nAfter payment, reopen Instant Answer.");
   } catch (e) {
     window.open(PRO_LINK, "_blank");
   }
 }
 
-// ── History ─────────────────────────────────────────────
+// ── Already paid? — checks Stripe session ───────────────
+async function checkAlreadyPaid() {
+  showLoading("Checking payment...");
+  try {
+    // Get the latest Stripe session ID from backend
+    const res = await fetch(`${BACKEND_URL}/latest-session`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) {
+      showResult("Error", "Could not verify", "Please contact support at karasan.business@gmail.com");
+      return;
+    }
+
+    const data = await res.json();
+
+    if (data?.pro === true) {
+      activatePro();
+    } else {
+      showResult("Not found", "No payment found", "We could not find a recent payment.\n\nIf you just paid, wait 1 minute and try again.\n\nFor help: karasan.business@gmail.com");
+    }
+  } catch (e) {
+    showResult("Error", "Check failed", "Could not connect. Try again in a moment.");
+  }
+}
+
+// ── History ──────────────────────────────────────────────
 function saveLocalHistory(mode, question, answer) {
   localHistory.unshift({
     mode,
@@ -159,19 +192,13 @@ function clearAll() {
   showReady("Ready");
 }
 
-// ── Mode & tools ─────────────────────────────────────────
-function clearModeActive() {
-  document.querySelectorAll(".mode-tab").forEach(b => b.classList.remove("active"));
-}
-
-function clearToolActive(selector) {
-  document.querySelectorAll(selector).forEach(b => b.classList.remove("active"));
-}
+// ── Modes ────────────────────────────────────────────────
+function clearModeActive() { document.querySelectorAll(".mode-tab").forEach(b => b.classList.remove("active")); }
+function clearToolActive(selector) { document.querySelectorAll(selector).forEach(b => b.classList.remove("active")); }
 
 function hideTools() {
   ["studyTools","pageTools","youtubeTools","filesTools"].forEach(id => {
-    const el = $(id);
-    if (el) el.style.display = "none";
+    const el = $(id); if (el) el.style.display = "none";
   });
   if ($("pdfUploadBox")) $("pdfUploadBox").style.display = "none";
   if ($("imageUploadBox")) $("imageUploadBox").style.display = "none";
@@ -270,10 +297,10 @@ function setFileTool(tool) {
   if ($("imageUploadBox")) $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
 }
 
-// ── Backend calls ────────────────────────────────────────
+// ── Backend ──────────────────────────────────────────────
 async function askBackend(input, mode) {
   if (hasReachedLimit()) {
-    showResult("Limit", "Free limit reached", `You've used all ${DAILY_LIMIT} free answers today.\n\nUpgrade to Pro for unlimited answers.`);
+    showResult("Limit", "Free limit reached", `You've used all ${DAILY_LIMIT} free answers today.\n\nUpgrade to Pro for unlimited answers ⚡`);
     return null;
   }
   const res = await fetch(ASK_URL, {
@@ -420,11 +447,12 @@ function handleImageUpload(event) {
   showResult("Files", "Image selected", `Selected: ${file.name}`);
 }
 
-// ── Bind all buttons ─────────────────────────────────────
+// ── Bind buttons ─────────────────────────────────────────
 function bindButtons() {
   const safe = (id, fn) => { const el = $(id); if (el) el.addEventListener("click", fn); };
 
   safe("upgradeBtn", upgradeToPro);
+  safe("alreadyPaidBtn", checkAlreadyPaid);
   safe("historyBtn", showHistory);
   safe("clearBtn", clearAll);
 
@@ -456,7 +484,6 @@ function bindButtons() {
 
   const pdfInput = $("pdfFileInput");
   if (pdfInput) pdfInput.addEventListener("change", handlePdfUpload);
-
   const imageInput = $("imageFileInput");
   if (imageInput) imageInput.addEventListener("change", handleImageUpload);
 
@@ -472,15 +499,10 @@ document.addEventListener("DOMContentLoaded", () => {
   bindButtons();
   setMode("quick");
   updateUsageUI();
-});
-
-// ── Pro activation listener ──────────────────────────────
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "PRO_ACTIVATED") {
-    localStorage.setItem("instant_answer_pro", "true");
-    updateUsageUI();
-    showResult("Pro", "Pro activated! ⚡", "Welcome to Instant Answer Pro!\n\nYou now have unlimited answers.");
+  if (isPro()) {
     const upgradeBtn = $("upgradeBtn");
+    const alreadyPaidBtn = $("alreadyPaidBtn");
     if (upgradeBtn) upgradeBtn.textContent = "Pro ✓";
+    if (alreadyPaidBtn) alreadyPaidBtn.classList.add("hidden");
   }
 });
