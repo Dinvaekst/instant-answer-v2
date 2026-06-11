@@ -240,7 +240,7 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Instant Answer backend is running",
-    version: "2.8",
+    version: "2.9",
     modes: ["quick", "deep", "study", "page", "youtube", "files"],
     providers: {
       openai: Boolean(process.env.OPENAI_API_KEY),
@@ -447,24 +447,43 @@ app.get("/history", async (req, res) => {
   }
 });
 
-// ✅ NEW: Latest session endpoint — checks if there's a recent payment (last 30 min)
+// ✅ NEW: Verify payment by email
+app.post("/verify-payment", async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ pro: false });
+
+    const { email } = req.body || {};
+    if (!email) return res.json({ pro: false });
+
+    const customers = await stripe.customers.list({ email: email.trim().toLowerCase(), limit: 5 });
+    if (!customers.data.length) return res.json({ pro: false });
+
+    for (const customer of customers.data) {
+      const subscriptions = await stripe.subscriptions.list({
+        customer: customer.id,
+        status: "active",
+        limit: 5
+      });
+      if (subscriptions.data.length > 0) {
+        return res.json({ pro: true });
+      }
+    }
+
+    res.json({ pro: false });
+  } catch (error) {
+    console.error("Verify payment error:", error);
+    res.status(500).json({ pro: false });
+  }
+});
+
+// ✅ Latest session endpoint
 app.get("/latest-session", async (req, res) => {
   try {
     if (!stripe) return res.status(500).json({ pro: false, error: "Stripe not configured" });
-
     const thirtyMinutesAgo = Math.floor(Date.now() / 1000) - 30 * 60;
-
-    const sessions = await stripe.checkout.sessions.list({
-      limit: 5,
-      created: { gte: thirtyMinutesAgo }
-    });
-
+    const sessions = await stripe.checkout.sessions.list({ limit: 5, created: { gte: thirtyMinutesAgo } });
     const completed = sessions.data.find(s => s.payment_status === "paid");
-
-    if (!completed) {
-      return res.json({ pro: false });
-    }
-
+    if (!completed) return res.json({ pro: false });
     res.json({ pro: true, session_id: completed.id });
   } catch (error) {
     console.error("Latest session error:", error);
