@@ -2,7 +2,6 @@ const BACKEND_URL = "https://instant-answer-backend-clean.onrender.com";
 const ASK_URL = `${BACKEND_URL}/ask`;
 const ASK_PDF_URL = `${BACKEND_URL}/ask-pdf`;
 const ASK_IMAGE_URL = `${BACKEND_URL}/ask-image`;
-const VERIFY_URL = `${BACKEND_URL}/verify-session`;
 const PRO_LINK = "https://buy.stripe.com/4gMbJ38OycALbkD3ZD3ks02";
 const DAILY_LIMIT = 5;
 
@@ -62,7 +61,6 @@ function showReady(text = "Ready") {
   result.innerHTML = `<div class="loading">${escapeHTML(text)}</div>`;
 }
 
-// ── Pro / Usage ──────────────────────────────────────────
 function getUsageKey() {
   const date = new Date().toISOString().slice(0, 10);
   return `ia_usage_${date}`;
@@ -76,7 +74,6 @@ function increaseUsage() {
 }
 
 function isPro() { return localStorage.getItem("instant_answer_pro") === "true"; }
-
 function hasReachedLimit() { return !isPro() && getUsage() >= DAILY_LIMIT; }
 
 function activatePro() {
@@ -84,7 +81,7 @@ function activatePro() {
   updateUsageUI();
   const upgradeBtn = $("upgradeBtn");
   const alreadyPaidBtn = $("alreadyPaidBtn");
-  if (upgradeBtn) { upgradeBtn.textContent = "Pro ✓"; upgradeBtn.style.background = "var(--green)"; }
+  if (upgradeBtn) upgradeBtn.textContent = "Pro ✓";
   if (alreadyPaidBtn) alreadyPaidBtn.classList.add("hidden");
   showResult("Pro", "Pro activated! ⚡", "Welcome to Instant Answer Pro!\n\nYou now have unlimited answers.");
 }
@@ -92,14 +89,9 @@ function activatePro() {
 function updateUsageUI() {
   const proStatus = $("proStatus");
   if (!proStatus) return;
-  if (isPro()) {
-    proStatus.textContent = "Pro ✓";
-  } else {
-    proStatus.textContent = `Free · ${Math.max(0, DAILY_LIMIT - getUsage())}/${DAILY_LIMIT}`;
-  }
+  proStatus.textContent = isPro() ? "Pro ✓" : `Free · ${Math.max(0, DAILY_LIMIT - getUsage())}/${DAILY_LIMIT}`;
 }
 
-// ── Upgrade ──────────────────────────────────────────────
 function upgradeToPro() {
   try {
     if (typeof chrome !== "undefined" && chrome?.tabs?.create) {
@@ -112,34 +104,36 @@ function upgradeToPro() {
   }
 }
 
-// ── Already paid? — checks Stripe session ───────────────
+// ✅ FIX: Ask for email and verify against Stripe
 async function checkAlreadyPaid() {
-  showLoading("Checking payment...");
-  try {
-    // Get the latest Stripe session ID from backend
-    const res = await fetch(`${BACKEND_URL}/latest-session`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" }
-    });
+  const email = prompt("Enter the email address you used to pay:");
+  
+  if (!email || !email.includes("@")) {
+    showResult("Error", "Invalid email", "Please enter a valid email address.");
+    return;
+  }
 
-    if (!res.ok) {
-      showResult("Error", "Could not verify", "Please contact support at karasan.business@gmail.com");
-      return;
-    }
+  showLoading("Checking payment...");
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim().toLowerCase() })
+    });
 
     const data = await res.json();
 
     if (data?.pro === true) {
       activatePro();
     } else {
-      showResult("Not found", "No payment found", "We could not find a recent payment.\n\nIf you just paid, wait 1 minute and try again.\n\nFor help: karasan.business@gmail.com");
+      showResult("Not found", "No payment found", `We could not find a payment for:\n${email}\n\nIf you just paid, wait 1 minute and try again.\n\nFor help: karasan.business@gmail.com`);
     }
   } catch (e) {
     showResult("Error", "Check failed", "Could not connect. Try again in a moment.");
   }
 }
 
-// ── History ──────────────────────────────────────────────
 function saveLocalHistory(mode, question, answer) {
   localHistory.unshift({
     mode,
@@ -192,7 +186,6 @@ function clearAll() {
   showReady("Ready");
 }
 
-// ── Modes ────────────────────────────────────────────────
 function clearModeActive() { document.querySelectorAll(".mode-tab").forEach(b => b.classList.remove("active")); }
 function clearToolActive(selector) { document.querySelectorAll(selector).forEach(b => b.classList.remove("active")); }
 
@@ -297,7 +290,6 @@ function setFileTool(tool) {
   if ($("imageUploadBox")) $("imageUploadBox").style.display = tool === "image" ? "block" : "none";
 }
 
-// ── Backend ──────────────────────────────────────────────
 async function askBackend(input, mode) {
   if (hasReachedLimit()) {
     showResult("Limit", "Free limit reached", `You've used all ${DAILY_LIMIT} free answers today.\n\nUpgrade to Pro for unlimited answers ⚡`);
@@ -447,7 +439,6 @@ function handleImageUpload(event) {
   showResult("Files", "Image selected", `Selected: ${file.name}`);
 }
 
-// ── Bind buttons ─────────────────────────────────────────
 function bindButtons() {
   const safe = (id, fn) => { const el = $(id); if (el) el.addEventListener("click", fn); };
 

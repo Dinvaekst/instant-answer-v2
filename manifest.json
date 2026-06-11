@@ -16,11 +16,5 @@
 
   "host_permissions": [
     "https://instant-answer-backend-clean.onrender.com/*"
-  ],
-
-  "externally_connectable": {
-    "matches": [
-      "https://instant-answer-backend-clean.onrender.com/*"
-    ]
-  }
+  ]
 }
