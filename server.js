@@ -8,6 +8,7 @@ import * as pdfParse from "pdf-parse";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Groq from "groq-sdk";
+import Anthropic from "@anthropic-ai/sdk";
 
 dotenv.config();
 
@@ -24,8 +25,50 @@ const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_K
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY) : null;
 const gemini = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 const groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
 const EXTENSION_ID = process.env.EXTENSION_ID || "minalbjfpcmldnlffobijmepodepndbo";
 
+// ── RATE LIMITING ─────────────────────────────────────────
+const rateLimitMap = new Map();
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 30;
+
+  if (!rateLimitMap.has(ip)) {
+    rateLimitMap.set(ip, { count: 1, start: now });
+    return true;
+  }
+
+  const record = rateLimitMap.get(ip);
+  if (now - record.start > windowMs) {
+    rateLimitMap.set(ip, { count: 1, start: now });
+    return true;
+  }
+
+  if (record.count >= maxRequests) return false;
+  record.count++;
+  return true;
+}
+
+// Clean up rate limit map every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now - record.start > 60 * 1000) rateLimitMap.delete(ip);
+  }
+}, 5 * 60 * 1000);
+
+function rateLimit(req, res, next) {
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: "Too many requests. Please wait a moment.", answer: "You're sending too many requests. Please wait 1 minute and try again." });
+  }
+  next();
+}
+
+// ── AUTH ──────────────────────────────────────────────────
 async function getUserFromToken(req) {
   try {
     const authHeader = req.headers.authorization || "";
@@ -67,18 +110,7 @@ async function getOrCreateMemoryProfile(user) {
 
 function buildMemoryText(memory) {
   if (!memory) return "No saved memory yet.";
-  return `Name: ${memory.full_name || "Unknown"}\nFavorite language: ${memory.favorite_language || "English"}\nFavorite mode: ${memory.favorite_mode || "quick"}\nAnswer style: ${memory.answer_style || "clear and simple"}\nSubjects: ${(memory.subjects || []).join(", ") || "None yet"}\nNotes: ${memory.notes || "No notes yet"}`;
-}
-
-async function saveChatHistory({ userId, mode, question, answer, provider }) {
-  if (!supabase || !userId) return;
-  const { error } = await supabase.from("chat_history").insert({
-    user_id: userId, mode,
-    question: String(question || "").slice(0, 12000),
-    answer: String(answer || "").slice(0, 20000),
-    provider: provider || "unknown"
-  });
-  if (error) console.error("Save chat history error:", error.message);
+  return `Name: ${memory.full_name || "Unknown"}\nFavorite language: ${memory.favorite_language || "English"}\nFavorite mode: ${memory.favorite_mode || "quick"}\nAnswer style: ${memory.answer_style || "clear and simple"}`;
 }
 
 function cleanText(text = "") { return String(text || "").replace(/\s+/g, " ").trim(); }
@@ -101,29 +133,68 @@ function getMaxTokens(mode, isPro) {
 }
 
 function buildSystemPrompt(mode) {
-  const base = `You are Instant Answer AI.\nAlways answer in the same language as the user.\nBe useful, direct and clear.\nDo not invent facts.\n`;
-  if (mode === "quick") return `${base}\nMODE: QUICK\n- Give a short answer.\n- 3-6 sentences max.\n- Answer directly.\n`;
-  if (mode === "deep") return `${base}\nMODE: DEEP\n- Give a detailed answer.\n- Use clear structure.\n- Include examples.\n`;
-  if (mode === "study") return `${base}\nMODE: STUDY\n- Explain like a good teacher.\n- Use simple words.\n`;
-  if (mode === "page") return `${base}\nMODE: PAGE\n- Use the provided webpage text.\n- Answer based on the page.\n`;
-  if (mode === "youtube") return `${base}\nMODE: YOUTUBE\n- Use the provided YouTube content.\n- Do not invent timestamps.\n`;
-  if (mode === "files") return `${base}\nMODE: FILES\n- Analyze uploaded content clearly.\n`;
-  if (mode === "math") return `${base}\nMODE: MATH\n- Solve step by step.\n- Show all working clearly.\n- Give the final answer on its own line.\n- Use clear mathematical notation.\n`;
-  return `${base}\nBe clear and reliable.\n`;
+  const base = `You are Instant Answer AI. Always answer in the same language as the user. Be useful, direct and clear. Do not invent facts.\n`;
+  if (mode === "quick") return `${base}MODE: QUICK\n- Give a short, direct answer.\n- 3-6 sentences max.\n- No long introductions.\n`;
+  if (mode === "deep") return `${base}MODE: DEEP\n- Give a detailed, well-structured answer.\n- Use headers and examples.\n- Explain the why.\n`;
+  if (mode === "study") return `${base}MODE: STUDY\n- Explain like a great teacher.\n- Use simple words and examples.\n- Make the student truly understand.\n`;
+  if (mode === "page") return `${base}MODE: PAGE\n- Use the provided webpage text to answer.\n- Stay accurate to the source.\n`;
+  if (mode === "youtube") return `${base}MODE: YOUTUBE\n- Use the provided YouTube content.\n- Do not invent timestamps.\n`;
+  if (mode === "files") return `${base}MODE: FILES\n- Analyze the uploaded content clearly.\n- If text is missing or unclear, say so.\n`;
+  if (mode === "math") return `${base}MODE: MATH\n- Solve step by step, showing all working.\n- Give the final answer clearly on its own line.\n- Use clear mathematical notation.\n`;
+  return `${base}Be clear and reliable.\n`;
 }
 
 function buildUserPrompt({ input, mode, memoryText = "" }) {
-  return `\nCurrent mode: ${mode}\n\nSaved user memory:\n${memoryText || "No saved memory."}\n\nUser request:\n${limitText(input, 26000)}\n`;
+  return `Current mode: ${mode}\n\nSaved user memory:\n${memoryText || "No saved memory."}\n\nUser request:\n${limitText(input, 26000)}`;
 }
 
-// ✅ GROQ STREAMING
-async function callGroqStream(res, prompt, systemPrompt, mode, isPro) {
-  if (!groq) throw new Error("Groq key missing");
+// ── AI PROVIDERS ──────────────────────────────────────────
+
+// ✅ Claude — primary AI (best quality)
+async function callClaude({ prompt, systemPrompt, mode, isPro }) {
+  if (!anthropic) throw new Error("Anthropic key missing");
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: getMaxTokens(mode, isPro),
+    system: systemPrompt,
+    messages: [{ role: "user", content: prompt }]
+  });
+  return message.content?.[0]?.text?.trim();
+}
+
+// ✅ Claude streaming
+async function callClaudeStream(res, prompt, systemPrompt, mode, isPro) {
+  if (!anthropic) throw new Error("Anthropic key missing");
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
+  let fullAnswer = "";
+
+  const stream = anthropic.messages.stream({
+    model: "claude-sonnet-4-6",
+    max_tokens: getMaxTokens(mode, isPro),
+    system: systemPrompt,
+    messages: [{ role: "user", content: prompt }]
+  });
+
+  stream.on("text", (text) => {
+    fullAnswer += text;
+    res.write(`data: ${JSON.stringify({ text })}\n\n`);
+  });
+
+  await stream.finalMessage();
+  res.write(`data: ${JSON.stringify({ done: true, answer: fullAnswer, provider: "claude" })}\n\n`);
+  res.end();
+  return fullAnswer;
+}
+
+async function callGroqStream(res, prompt, systemPrompt, mode, isPro) {
+  if (!groq) throw new Error("Groq key missing");
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
   const stream = await groq.chat.completions.create({
     model: "llama-3.1-8b-instant",
     temperature: mode === "quick" ? 0.15 : 0.3,
@@ -131,14 +202,10 @@ async function callGroqStream(res, prompt, systemPrompt, mode, isPro) {
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
     stream: true
   });
-
   let fullAnswer = "";
   for await (const chunk of stream) {
     const text = chunk.choices?.[0]?.delta?.content || "";
-    if (text) {
-      fullAnswer += text;
-      res.write(`data: ${JSON.stringify({ text })}\n\n`);
-    }
+    if (text) { fullAnswer += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); }
   }
   res.write(`data: ${JSON.stringify({ done: true, answer: fullAnswer, provider: "groq" })}\n\n`);
   res.end();
@@ -183,8 +250,8 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://instant-answer.local", "X-Title": "Instant Answer" },
     body: JSON.stringify({
-      model: mode === "quick" ? "meta-llama/llama-3.1-8b-instruct:free" : "google/gemini-flash-1.5",
-      temperature: mode === "quick" ? 0.15 : 0.3,
+      model: "google/gemini-flash-1.5",
+      temperature: 0.3,
       max_tokens: getMaxTokens(mode, isPro),
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }]
     })
@@ -194,13 +261,14 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
   return data.choices?.[0]?.message?.content?.trim();
 }
 
+// ✅ Route: Claude first, then Groq, then others
 async function routeAI({ prompt, systemPrompt, mode, isPro }) {
   const errors = [];
-  // ✅ Groq first for ALL modes — fastest
-  const route = ["groq", "gemini", "openrouter", "openai"];
+  const route = ["claude", "groq", "gemini", "openrouter", "openai"];
   for (const provider of route) {
     try {
       let answer = "";
+      if (provider === "claude") answer = await callClaude({ prompt, systemPrompt, mode, isPro });
       if (provider === "groq") answer = await callGroq({ prompt, systemPrompt, mode, isPro });
       if (provider === "gemini") answer = await callGemini({ prompt, systemPrompt, mode, isPro });
       if (provider === "openai") answer = await callOpenAI({ prompt, systemPrompt, mode, isPro });
@@ -217,21 +285,30 @@ async function routeAI({ prompt, systemPrompt, mode, isPro }) {
 // ── Routes ────────────────────────────────────────────────
 
 app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Instant Answer backend running", version: "3.0-streaming" });
+  res.json({
+    status: "ok", message: "Instant Answer backend running", version: "3.0",
+    providers: {
+      claude: Boolean(process.env.ANTHROPIC_API_KEY),
+      openai: Boolean(process.env.OPENAI_API_KEY),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      groq: Boolean(process.env.GROQ_API_KEY),
+      stripe: Boolean(process.env.STRIPE_SECRET_KEY)
+    }
+  });
 });
 
-// ✅ NEW: Streaming endpoint for faster responses
-app.post("/ask-stream", async (req, res) => {
+// ✅ Streaming — Claude first, Groq fallback
+app.post("/ask-stream", rateLimit, async (req, res) => {
   try {
     const { input, mode = "quick" } = req.body || {};
-    if (!input || typeof input !== "string") {
-      return res.status(400).json({ error: "Missing input" });
-    }
+    if (!input || typeof input !== "string") return res.status(400).json({ error: "Missing input" });
     const finalMode = detectMode(mode);
     const systemPrompt = buildSystemPrompt(finalMode);
     const prompt = buildUserPrompt({ input, mode: finalMode, memoryText: "" });
 
-    if (groq) {
+    if (anthropic) {
+      await callClaudeStream(res, prompt, systemPrompt, finalMode, false);
+    } else if (groq) {
       await callGroqStream(res, prompt, systemPrompt, finalMode, false);
     } else {
       const ai = await routeAI({ prompt, systemPrompt, mode: finalMode, isPro: false });
@@ -239,16 +316,14 @@ app.post("/ask-stream", async (req, res) => {
     }
   } catch (error) {
     console.error("Stream error:", error);
-    if (!res.headersSent) res.status(500).json({ error: error.message });
+    if (!res.headersSent) res.status(500).json({ error: error.message, answer: "Something went wrong. Please try again." });
   }
 });
 
-app.post("/ask", async (req, res) => {
+app.post("/ask", rateLimit, async (req, res) => {
   try {
     const { input, mode = "quick" } = req.body || {};
-    if (!input || typeof input !== "string") {
-      return res.status(400).json({ error: "Missing input", answer: "Input mangler." });
-    }
+    if (!input || typeof input !== "string") return res.status(400).json({ error: "Missing input", answer: "Input is missing." });
     const finalMode = detectMode(mode);
     const systemPrompt = buildSystemPrompt(finalMode);
     const prompt = buildUserPrompt({ input, mode: finalMode, memoryText: "" });
@@ -256,20 +331,20 @@ app.post("/ask", async (req, res) => {
     res.json({ answer: ai.answer, provider: ai.provider, mode: finalMode });
   } catch (error) {
     console.error("Ask error:", error);
-    res.status(500).json({ error: "Server error", answer: `Error: ${error.message}` });
+    res.status(500).json({ error: "Server error", answer: "Something went wrong. Please try again in a moment." });
   }
 });
 
-app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
+app.post("/ask-pdf", rateLimit, upload.single("pdf"), async (req, res) => {
   try {
     const { tool = "summary", question = "" } = req.body || {};
-    if (!req.file) return res.status(400).json({ error: "Missing PDF", answer: "Upload a PDF first." });
+    if (!req.file) return res.status(400).json({ error: "Missing PDF", answer: "Please upload a PDF file first." });
     let parsed;
     if (typeof pdfParse.default === "function") parsed = await pdfParse.default(req.file.buffer);
     else if (typeof pdfParse === "function") parsed = await pdfParse(req.file.buffer);
     else parsed = await pdfParse.pdf(req.file.buffer);
     const pdfText = cleanText(parsed.text || "");
-    if (!pdfText || pdfText.length < 20) return res.status(400).json({ error: "Empty PDF", answer: "Could not read PDF. Make sure it contains text (not a scanned image)." });
+    if (!pdfText || pdfText.length < 20) return res.status(400).json({ error: "Empty PDF", answer: "Could not read this PDF. Make sure it contains actual text (not a scanned image). Try a different PDF." });
     const mode = "files";
     const systemPrompt = buildSystemPrompt(mode);
     const prompt = buildUserPrompt({ mode, memoryText: "", input: `File type: PDF\nTool: ${tool}\n\nUser question:\n${question || "Analyze this PDF."}\n\nPDF text:\n${limitText(pdfText, 14000)}` });
@@ -277,21 +352,21 @@ app.post("/ask-pdf", upload.single("pdf"), async (req, res) => {
     res.json({ answer: ai.answer, provider: ai.provider, fileName: req.file.originalname, tool });
   } catch (error) {
     console.error("PDF error:", error);
-    res.status(500).json({ error: "PDF error", answer: `Error: ${error.message}` });
+    res.status(500).json({ error: "PDF error", answer: "Could not analyze the PDF. Please try again or use a different file." });
   }
 });
 
-app.post("/ask-image", upload.single("image"), async (req, res) => {
+app.post("/ask-image", rateLimit, upload.single("image"), async (req, res) => {
   try {
     const { question = "" } = req.body || {};
-    if (!req.file) return res.status(400).json({ error: "Missing image", answer: "Upload an image first." });
-    if (!openai) return res.status(500).json({ error: "OpenAI key missing", answer: "Image analysis requires OpenAI API key." });
+    if (!req.file) return res.status(400).json({ error: "Missing image", answer: "Please upload an image first." });
+    if (!openai) return res.status(500).json({ error: "OpenAI key missing", answer: "Image analysis is not available right now." });
     const mimeType = req.file.mimetype || "image/png";
     const base64 = req.file.buffer.toString("base64");
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini", temperature: 0.2, max_tokens: 1600,
       messages: [
-        { role: "system", content: "You are Instant Answer Vision. Analyze the image clearly. Read visible text. Answer in the user's language." },
+        { role: "system", content: "You are Instant Answer Vision. Analyze the image clearly. Read any visible text. Answer in the user's language." },
         { role: "user", content: [{ type: "text", text: question || "Analyze this image." }, { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }] }
       ]
     });
@@ -299,7 +374,7 @@ app.post("/ask-image", upload.single("image"), async (req, res) => {
     res.json({ answer, provider: "openai-vision", fileName: req.file.originalname });
   } catch (error) {
     console.error("Image error:", error);
-    res.status(500).json({ error: "Image error", answer: `Error: ${error.message}` });
+    res.status(500).json({ error: "Image error", answer: "Could not analyze the image. Please try a clearer image." });
   }
 });
 
@@ -317,11 +392,16 @@ app.post("/webhook", async (req, res) => {
     const userId = session.client_reference_id;
     if (userId && supabase) {
       await supabase.from("profiles").update({ plan: "pro", stripe_customer_id: typeof session.customer === "string" ? session.customer : session.customer?.id || null }).eq("id", userId);
+      console.log(`✅ Pro activated for user: ${userId}`);
     }
   }
+  // ✅ Remove Pro when subscription cancelled
   if (event.type === "customer.subscription.deleted") {
     const customerId = event.data.object.customer;
-    if (customerId && supabase) await supabase.from("profiles").update({ plan: "free" }).eq("stripe_customer_id", customerId);
+    if (customerId && supabase) {
+      await supabase.from("profiles").update({ plan: "free" }).eq("stripe_customer_id", customerId);
+      console.log(`❌ Pro removed for customer: ${customerId}`);
+    }
   }
   res.json({ received: true });
 });
@@ -356,7 +436,7 @@ app.post("/billing-portal", async (req, res) => {
     if (!stripe) return res.status(500).json({ error: "Stripe not configured" });
     const profile = await getUserProfile(user.id);
     if (!profile?.stripe_customer_id) return res.status(400).json({ error: "No Stripe customer found. Upgrade first." });
-    const portalSession = await stripe.billingPortal.sessions.create({ customer: profile.stripe_customer_id, return_url: `https://instant-answer-backend-clean.onrender.com` });
+    const portalSession = await stripe.billingPortal.sessions.create({ customer: profile.stripe_customer_id, return_url: "https://instant-answer-backend-clean.onrender.com" });
     res.json({ url: portalSession.url });
   } catch (e) { res.status(500).json({ error: "Could not create billing portal" }); }
 });
