@@ -264,7 +264,11 @@ async function callOpenRouter({ prompt, systemPrompt, mode, isPro }) {
 // ✅ Route: Claude first, then Groq, then others
 async function routeAI({ prompt, systemPrompt, mode, isPro }) {
   const errors = [];
-  const route = ["claude", "groq", "gemini", "openrouter", "openai"];
+  // Quick mode: Groq first (fastest), Claude fallback
+  // Deep/Study/Math: Claude first (best quality), Groq fallback
+  const route = mode === "quick"
+    ? ["groq", "claude", "gemini", "openrouter", "openai"]
+    : ["claude", "groq", "gemini", "openrouter", "openai"];
   for (const provider of route) {
     try {
       let answer = "";
@@ -306,7 +310,10 @@ app.post("/ask-stream", rateLimit, async (req, res) => {
     const systemPrompt = buildSystemPrompt(finalMode);
     const prompt = buildUserPrompt({ input, mode: finalMode, memoryText: "" });
 
-    if (anthropic) {
+    // Quick = Groq (fast), Deep/Study/Math = Claude (quality)
+    if (finalMode === "quick" && groq) {
+      await callGroqStream(res, prompt, systemPrompt, finalMode, false);
+    } else if (anthropic) {
       await callClaudeStream(res, prompt, systemPrompt, finalMode, false);
     } else if (groq) {
       await callGroqStream(res, prompt, systemPrompt, finalMode, false);
