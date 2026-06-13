@@ -4,90 +4,361 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Instant Answer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--green:#b7ff4a;--bg:#050505;--card:#1c1c1c;--muted:#b8b8b8;--border:rgba(255,255,255,.12);--danger:#ff6b6b}
-body{width:430px;height:620px;overflow:hidden;font-family:Arial,sans-serif;background:var(--bg);color:white;padding:10px}
-.app{height:100%;border-radius:28px;padding:16px;background:radial-gradient(circle at top left,rgba(183,255,74,.16),transparent 32%),linear-gradient(180deg,#111,#050505);border:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
-button{border:none;cursor:pointer;font-family:Arial,sans-serif}
-.hidden{display:none!important}
-.main-app{height:100%;display:flex;flex-direction:column;gap:10px;min-height:0}
-.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.top-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.small-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
-.upgrade-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:var(--green);color:#050505;border:none}
-.already-paid-btn{padding:8px 10px;border-radius:15px;font-size:10px;font-weight:900;white-space:nowrap;background:rgba(183,255,74,.15);color:var(--green);border:1px solid var(--green)}
-.brand{font-size:16px;font-weight:900}
-.brand span{color:var(--green)}
-.hero h1{font-size:42px;line-height:.9;font-weight:950;letter-spacing:-2px}
-.hero h1 span{color:var(--green)}
-.subtitle{color:var(--muted);font-size:13px;line-height:1.4}
-.status-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.status-pill{padding:9px 11px;border-radius:999px;background:var(--green);color:#050505;font-size:11px;font-weight:900;white-space:nowrap}
-#pageStatus{background:rgba(255,255,255,.07);color:white;border:1px solid var(--border);flex:1}
-.mode-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-.mode-tab{padding:10px 4px;border-radius:15px;font-size:10px;font-weight:900;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
-.mode-tab.active{background:var(--green);color:#050505;border:none}
-.panel{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;border-radius:24px;padding:14px;background:rgba(255,255,255,.055);border:1px solid var(--border)}
-.panel-title{font-size:23px;font-weight:950}
-.panel-subtitle{color:var(--muted);font-size:13px;line-height:1.4}
-#result{flex:1;min-height:100px;overflow-y:auto;margin:10px 0;padding:14px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid var(--border);font-size:14px;line-height:1.6}
-.answer-label{font-size:11px;text-transform:uppercase;color:var(--green);font-weight:950;margin-bottom:8px}
-.answer-title{font-size:20px;font-weight:950;margin-bottom:8px}
-.answer-content{white-space:pre-wrap;word-break:break-word}
-.loading{height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
-.mode-tools{display:none;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
-.tool-btn{padding:9px;border-radius:14px;font-size:10px;font-weight:900;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
-.tool-btn.active{background:var(--green);color:#050505;border:none}
-.file-box{display:none;margin-bottom:8px;padding:10px;border-radius:16px;background:rgba(255,255,255,.045);border:1px dashed var(--border)}
-.file-box input{width:100%;color:white;font-size:11px}
-#pdfFileName,#imageFileName{margin-top:6px;color:var(--muted);font-size:11px}
-textarea{width:100%;outline:none;border:1px solid var(--border);background:#242424;color:white;border-radius:17px;padding:14px;font-size:14px;height:58px;resize:none;font-family:Arial,sans-serif}
-.action-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.primary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:var(--green);color:#050505;border:none}
-.secondary-btn{padding:13px;border-radius:18px;font-weight:950;font-size:14px;background:rgba(255,255,255,.07);color:white;border:1px solid var(--border)}
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:999px}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --accent: #c8ff57;
+  --accent-dim: rgba(200,255,87,.12);
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1e1e1e;
+  --surface3: #282828;
+  --text: #f0f0f0;
+  --muted: #888;
+  --border: rgba(255,255,255,.08);
+  --border-hover: rgba(255,255,255,.15);
+  --danger: #ff5555;
+  --pro-gold: #ffd700;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+}
+
+body { width:400px; height:600px; overflow:hidden; font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); }
+button { border:none; cursor:pointer; font-family:'Inter',sans-serif; transition:all 0.15s ease; }
+button:active { transform:scale(0.97); }
+.hidden { display:none!important; }
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:999px; }
+
+/* ── APP SHELL ── */
+.app {
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  background:
+    radial-gradient(ellipse 60% 30% at 80% 0%, rgba(200,255,87,.06) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 20% at 0% 100%, rgba(200,255,87,.04) 0%, transparent 70%),
+    var(--bg);
+  padding:14px;
+  gap:10px;
+}
+
+/* ── AUTH SCREEN ── */
+.auth-screen {
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:20px;
+  padding:4px;
+}
+
+.auth-brand {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.auth-brand-icon {
+  width:36px; height:36px;
+  background:var(--accent);
+  border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+}
+
+.auth-brand-name {
+  font-family:'Syne',sans-serif;
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:-0.3px;
+}
+
+.auth-brand-name span { color:var(--accent); }
+
+.auth-title {
+  font-family:'Syne',sans-serif;
+  font-size:28px;
+  font-weight:800;
+  line-height:1.1;
+  letter-spacing:-0.5px;
+}
+
+.auth-title span { color:var(--accent); }
+
+.auth-subtitle {
+  font-size:13px;
+  color:var(--muted);
+  line-height:1.5;
+  margin-top:-10px;
+}
+
+.auth-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.auth-tabs {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  background:var(--surface2);
+  padding:4px;
+  border-radius:var(--radius-md);
+}
+
+.auth-tab {
+  padding:9px;
+  border-radius:var(--radius-sm);
+  font-size:13px;
+  font-weight:600;
+  color:var(--muted);
+  background:transparent;
+  transition:all 0.15s;
+}
+
+.auth-tab.active {
+  background:var(--accent);
+  color:#0a0a0a;
+  font-weight:700;
+}
+
+.auth-input {
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  color:var(--text);
+  font-size:13px;
+  font-family:'Inter',sans-serif;
+  padding:12px 14px;
+  outline:none;
+  transition:border-color 0.15s;
+}
+
+.auth-input:focus { border-color:var(--border-hover); }
+.auth-input::placeholder { color:var(--muted); }
+
+.auth-primary {
+  padding:13px;
+  border-radius:var(--radius-md);
+  font-size:14px;
+  font-weight:700;
+  background:var(--accent);
+  color:#0a0a0a;
+  width:100%;
+  letter-spacing:0.01em;
+}
+
+.auth-primary:hover { background:#d4ff6a; }
+
+.auth-skip {
+  padding:11px;
+  border-radius:var(--radius-md);
+  font-size:13px;
+  font-weight:600;
+  background:var(--surface2);
+  color:var(--muted);
+  width:100%;
+  border:1px solid var(--border);
+}
+
+.auth-skip:hover { color:var(--text); border-color:var(--border-hover); }
+
+.auth-link {
+  background:transparent;
+  color:var(--accent);
+  font-size:12px;
+  font-weight:600;
+  text-align:left;
+  padding:0;
+}
+
+.auth-message {
+  font-size:12px;
+  color:var(--muted);
+  min-height:16px;
+  text-align:center;
+}
+
+.auth-message.error { color:var(--danger); }
+.auth-message.success { color:var(--accent); }
+
+/* ── MAIN APP ── */
+.main-app { height:100%; display:flex; flex-direction:column; gap:10px; min-height:0; }
+
+.topbar { display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+
+.brand { display:flex; align-items:center; gap:7px; }
+
+.brand-icon {
+  width:28px; height:28px;
+  background:var(--accent);
+  border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px;
+}
+
+.brand-name { font-family:'Syne',sans-serif; font-size:15px; font-weight:800; letter-spacing:-0.3px; }
+.brand-name span { color:var(--accent); }
+
+.topbar-actions { display:flex; align-items:center; gap:6px; }
+
+.btn-upgrade { background:var(--accent); color:#0a0a0a; font-size:11px; font-weight:700; padding:7px 13px; border-radius:var(--radius-sm); }
+.btn-upgrade:hover { background:#d4ff6a; }
+.btn-upgrade.is-pro { background:linear-gradient(135deg,#ffd700,#ffaa00); color:#0a0a0a; }
+
+.btn-sm { background:var(--surface2); color:var(--muted); font-size:11px; font-weight:600; padding:7px 11px; border-radius:var(--radius-sm); border:1px solid var(--border); }
+.btn-sm:hover { background:var(--surface3); color:var(--text); border-color:var(--border-hover); }
+
+.btn-already-paid { background:var(--accent-dim); color:var(--accent); font-size:10px; font-weight:700; padding:7px 10px; border-radius:var(--radius-sm); border:1px solid rgba(200,255,87,.2); }
+.btn-already-paid:hover { background:rgba(200,255,87,.2); }
+
+.status-row { display:flex; gap:6px; flex-shrink:0; }
+
+.status-chip { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:999px; font-size:11px; font-weight:600; border:1px solid var(--border); background:var(--surface); color:var(--muted); }
+.status-chip .dot { width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+.status-chip.pro { background:linear-gradient(135deg,rgba(255,215,0,.15),rgba(255,170,0,.1)); border-color:rgba(255,215,0,.3); color:var(--pro-gold); }
+.status-chip.pro .dot { background:var(--pro-gold); }
+#pageStatus { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.mode-tabs { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; background:var(--surface); padding:5px; border-radius:var(--radius-md); border:1px solid var(--border); flex-shrink:0; }
+.mode-tab { padding:8px 2px; border-radius:var(--radius-sm); font-size:10px; font-weight:600; color:var(--muted); background:transparent; }
+.mode-tab:hover { color:var(--text); background:var(--surface2); }
+.mode-tab.active { background:var(--accent); color:#0a0a0a; font-weight:700; }
+
+.panel { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); padding:14px; overflow:hidden; }
+
+.panel-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; flex-shrink:0; }
+.panel-title { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; letter-spacing:-0.3px; }
+.panel-subtitle { font-size:11px; color:var(--muted); margin-top:2px; line-height:1.4; }
+.mode-icon { font-size:18px; opacity:0.7; }
+
+#result { flex:1; min-height:0; overflow-y:auto; padding:12px; border-radius:var(--radius-md); background:var(--surface2); border:1px solid var(--border); font-size:13px; line-height:1.65; margin-bottom:10px; }
+
+.loading-wrap { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+.loading-dots { display:flex; gap:6px; }
+.loading-dots span { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:bounce 1.2s infinite ease-in-out; opacity:0.3; }
+.loading-dots span:nth-child(1) { animation-delay:0s; }
+.loading-dots span:nth-child(2) { animation-delay:0.2s; }
+.loading-dots span:nth-child(3) { animation-delay:0.4s; }
+@keyframes bounce { 0%,80%,100%{transform:scale(0.8);opacity:0.3} 40%{transform:scale(1.2);opacity:1} }
+.loading-text { font-size:12px; color:var(--muted); font-weight:500; }
+
+.answer-label { font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:var(--accent); font-weight:700; margin-bottom:6px; }
+.answer-title { font-size:16px; font-weight:700; margin-bottom:8px; letter-spacing:-0.2px; }
+.answer-content { white-space:pre-wrap; word-break:break-word; color:rgba(240,240,240,.85); font-size:13px; }
+
+.mode-tools { display:none; grid-template-columns:repeat(3,1fr); gap:5px; margin-bottom:8px; flex-shrink:0; }
+.tool-btn { padding:8px; border-radius:var(--radius-sm); font-size:11px; font-weight:600; color:var(--muted); background:var(--surface3); border:1px solid var(--border); }
+.tool-btn:hover { color:var(--text); border-color:var(--border-hover); }
+.tool-btn.active { background:var(--accent-dim); color:var(--accent); border-color:rgba(200,255,87,.3); }
+
+.file-box { display:none; margin-bottom:8px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface2); border:1px dashed var(--border); flex-shrink:0; }
+.file-box input { width:100%; color:var(--muted); font-size:11px; background:none; border:none; outline:none; cursor:pointer; }
+.file-name { margin-top:4px; font-size:10px; color:var(--muted); }
+
+textarea { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text); font-size:13px; font-family:'Inter',sans-serif; padding:11px 14px; height:52px; resize:none; outline:none; transition:border-color 0.15s; line-height:1.5; }
+textarea:focus { border-color:var(--border-hover); }
+textarea::placeholder { color:var(--muted); }
+
+.action-row { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; flex-shrink:0; }
+.btn-primary { padding:11px; border-radius:var(--radius-md); font-size:13px; font-weight:700; background:var(--accent); color:#0a0a0a; border:none; }
+.btn-primary:hover { background:#d4ff6a; }
+.btn-secondary { padding:11px; border-radius:var(--radius-md); font-size:13px; font-weight:600; background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+.btn-secondary:hover { background:var(--surface3); color:var(--text); border-color:var(--border-hover); }
 </style>
 </head>
 <body>
 <div class="app">
-  <div id="mainApp" class="main-app">
-    <div class="top">
-      <div class="brand">Instant <span>Answer</span></div>
-      <div class="top-actions">
-        <button id="upgradeBtn" class="upgrade-btn" type="button">Upgrade ⚡</button>
-        <button id="alreadyPaidBtn" class="already-paid-btn" type="button">Already paid?</button>
-        <button id="historyBtn" class="small-btn" type="button">History</button>
-        <button id="clearBtn" class="small-btn" type="button">Clear</button>
+
+  <!-- ── AUTH SCREEN ── -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-brand">
+      <div class="auth-brand-icon">⚡</div>
+      <div class="auth-brand-name">Instant <span>Answer</span></div>
+    </div>
+
+    <div>
+      <div class="auth-title">Your AI<br><span>workspace</span></div>
+      <div class="auth-subtitle">Login to save history and sync across devices.</div>
+    </div>
+
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button id="loginTabBtn" class="auth-tab active" type="button">Login</button>
+        <button id="signupTabBtn" class="auth-tab" type="button">Sign up</button>
+      </div>
+
+      <input id="authNameInput" class="auth-input hidden" type="text" placeholder="Full name" autocomplete="name" />
+      <input id="authEmailInput" class="auth-input" type="email" placeholder="Email address" autocomplete="email" />
+      <input id="authPasswordInput" class="auth-input" type="password" placeholder="Password" autocomplete="current-password" />
+
+      <button id="authMainBtn" class="auth-primary" type="button">Login</button>
+      <button id="forgotPasswordBtn" class="auth-link" type="button">Forgot password?</button>
+      <div id="authMessage" class="auth-message"></div>
+    </div>
+
+    <button id="skipAuthBtn" class="auth-skip" type="button">Continue without login →</button>
+  </div>
+
+  <!-- ── MAIN APP ── -->
+  <div id="mainApp" class="main-app hidden">
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-name">Instant <span>Answer</span></div>
+      </div>
+      <div class="topbar-actions">
+        <button id="upgradeBtn" class="btn-upgrade" type="button">Upgrade ⚡</button>
+        <button id="alreadyPaidBtn" class="btn-already-paid" type="button">Paid?</button>
+        <button id="manageBtn" class="btn-sm hidden" type="button">Manage</button>
+        <button id="historyBtn" class="btn-sm" type="button">History</button>
+        <button id="clearBtn" class="btn-sm" type="button">Clear</button>
+        <button id="logoutBtn" class="btn-sm" type="button">Logout</button>
       </div>
     </div>
 
-    <div class="hero">
-      <h1>Fast AI<br><span>for work</span></h1>
-      <div class="subtitle">Quick answers, study notes, page reading, YouTube summaries and file analysis.</div>
-      <div class="status-row">
-        <div id="proStatus" class="status-pill">Free</div>
-        <div id="pageStatus" class="status-pill">Ready</div>
-      </div>
+    <div class="status-row">
+      <div id="proStatus" class="status-chip free"><div class="dot"></div>Free · 5/5</div>
+      <div id="pageStatus" class="status-chip">Ready</div>
     </div>
 
-    <div class="mode-tabs">
+    <div class="mode-tabs" style="grid-template-columns:repeat(7,1fr)">
       <button id="quickModeBtn" class="mode-tab active" type="button">Quick</button>
       <button id="deepModeBtn" class="mode-tab" type="button">Deep</button>
       <button id="studyModeBtn" class="mode-tab" type="button">Study</button>
       <button id="pageModeBtn" class="mode-tab" type="button">Page</button>
       <button id="youtubeModeBtn" class="mode-tab" type="button">YouTube</button>
       <button id="filesModeBtn" class="mode-tab" type="button">Files</button>
+      <button id="mathModeBtn" class="mode-tab" type="button">Math</button>
     </div>
 
     <div class="panel">
-      <div>
-        <div id="panelTitle" class="panel-title">Quick Mode</div>
-        <div id="panelSubtitle" class="panel-subtitle">Fast answers with simple wording.</div>
+      <div class="panel-header">
+        <div>
+          <div id="panelTitle" class="panel-title">Quick Mode</div>
+          <div id="panelSubtitle" class="panel-subtitle">Fast answers with simple wording.</div>
+        </div>
+        <div id="modeIcon" class="mode-icon">⚡</div>
       </div>
 
-      <div id="result"><div class="loading">Ready</div></div>
+      <div id="result">
+        <div class="loading-wrap">
+          <div class="loading-dots"><span></span><span></span><span></span></div>
+          <div class="loading-text">Ready</div>
+        </div>
+      </div>
 
       <div id="studyTools" class="mode-tools">
         <button id="studyExplainBtn" class="tool-btn active" type="button">Explain</button>
@@ -96,7 +367,7 @@ textarea{width:100%;outline:none;border:1px solid var(--border);background:#2424
       </div>
 
       <div id="pageTools" class="mode-tools">
-        <button id="pageReadBtn" class="tool-btn active" type="button">Page</button>
+        <button id="pageReadBtn" class="tool-btn active" type="button">Full page</button>
         <button id="pageSelectedBtn" class="tool-btn" type="button">Selected</button>
         <button id="pageSummaryBtn" class="tool-btn" type="button">Summary</button>
       </div>
@@ -113,25 +384,33 @@ textarea{width:100%;outline:none;border:1px solid var(--border);background:#2424
         <button id="fileNotesBtn" class="tool-btn" type="button">Notes</button>
       </div>
 
+      <div id="mathTools" class="mode-tools">
+        <button id="mathSolveBtn" class="tool-btn active" type="button">Solve</button>
+        <button id="mathExplainBtn" class="tool-btn" type="button">Explain</button>
+        <button id="mathGraphBtn" class="tool-btn" type="button">Graph</button>
+      </div>
+
       <div id="pdfUploadBox" class="file-box">
         <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" />
-        <div id="pdfFileName">No PDF selected</div>
+        <div id="pdfFileName" class="file-name">No PDF selected</div>
       </div>
 
       <div id="imageUploadBox" class="file-box">
         <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp" />
-        <div id="imageFileName">No image selected</div>
+        <div id="imageFileName" class="file-name">No image selected</div>
       </div>
 
       <textarea id="mainInput" placeholder="Ask anything..."></textarea>
 
       <div class="action-row">
-        <button id="mainActionBtn" class="primary-btn" type="button">Send</button>
-        <button id="readPageBtn" class="secondary-btn" type="button">Read page</button>
+        <button id="mainActionBtn" class="btn-primary" type="button">Send</button>
+        <button id="readPageBtn" class="btn-secondary" type="button">Read page</button>
       </div>
     </div>
   </div>
+
 </div>
+<script src="supabase.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
