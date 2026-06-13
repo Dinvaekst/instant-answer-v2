@@ -39,9 +39,23 @@ function escapeHTML(v = "") {
 }
 
 function formatAnswer(text = "") {
-  return escapeHTML(text)
-    .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>")
-    .replace(/\n/g,"<br>");
+  let t = escapeHTML(text);
+  // Remove LaTeX: \( ... \) and \[ ... \]
+  t = t.replace(/\\\\\(/g, "").replace(/\\\\\)/g, "");
+  t = t.replace(/\\\\\[/g, "").replace(/\\\\\]/g, "");
+  // Bold **text**
+  t = t.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  // Headers
+  t = t.replace(/^### (.*?)$/gm, '<span style="color:var(--accent);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-top:8px">$1</span>');
+  t = t.replace(/^## (.*?)$/gm, '<span style="font-size:14px;font-weight:700;display:block;margin-top:8px">$1</span>');
+  // Numbered lists
+  t = t.replace(/^(\d+)\. (.*?)$/gm, '<div style="display:flex;gap:6px;margin:3px 0"><span style="color:var(--accent);font-weight:700;min-width:16px">$1.</span><span>$2</span></div>');
+  // Bullets
+  t = t.replace(/^[-•] (.*?)$/gm, '<div style="display:flex;gap:6px;margin:3px 0"><span style="color:var(--accent)">•</span><span>$1</span></div>');
+  // Paragraph spacing
+  t = t.replace(/\n\n/g, '<div style="height:7px"></div>');
+  t = t.replace(/\n/g, "<br>");
+  return t;
 }
 
 // ── SUPABASE ──────────────────────────────────────────────
@@ -580,17 +594,24 @@ async function readCurrentPage() {
 
 // ✅ FIX: buildPrompt now correctly handles study quiz tool
 function buildPrompt(message="") {
-  if(activeMode==="quick") return `Mode: Quick\nAnswer directly and concisely.\n\nUser:\n${message}`;
-  if(activeMode==="deep") return `Mode: Deep\nGive a detailed, well-structured answer with examples.\n\nUser:\n${message}`;
+  if(activeMode==="quick") return `Mode: Quick\nAnswer directly. 2-4 sentences max. No bullet points or headers. Just a clear direct answer.\n\nUser:\n${message}`;
+
+  if(activeMode==="deep") return `Mode: Deep\nGive a detailed answer. Use this exact format:\n- Start with a 1-sentence summary\n- Then explain in depth with numbered sections\n- End with a key takeaway\nDo NOT use LaTeX notation. Use plain text only.\n\nUser:\n${message}`;
+
   if(activeMode==="study") {
-    if(activeStudyTool==="explain") return `Mode: Study - Explain\nExplain this clearly like a good teacher. Use simple words and examples.\n\nTopic:\n${message}`;
-    if(activeStudyTool==="notes") return `Mode: Study - Notes\nCreate clear, organized study notes for this topic. Use bullet points and headers.\n\nTopic:\n${message}`;
-    if(activeStudyTool==="quiz") return `Mode: Study - Quiz\nCreate 5 quiz questions with answers for this topic. Number each question and provide the answer below it.\n\nTopic:\n${message}`;
+    if(activeStudyTool==="explain") return `Mode: Study - Explain\nExplain this topic clearly like a great teacher.\n- Use simple language\n- Give 1-2 real examples\n- End with a one-line summary\nDo NOT use LaTeX notation.\n\nTopic:\n${message}`;
+
+    if(activeStudyTool==="notes") return `Mode: Study - Notes\nCreate study notes in this exact format:\n\n## Key Concepts\n- Point 1\n- Point 2\n\n## Important Details\n- Detail 1\n- Detail 2\n\n## Summary\nOne sentence summary.\n\nTopic:\n${message}`;
+
+    if(activeStudyTool==="quiz") return `Mode: Study - Quiz\nCreate exactly 5 quiz questions. Use this exact format for each:\n\n1. [Question here]\nAnswer: [Answer here]\n\n2. [Question here]\nAnswer: [Answer here]\n\n(continue for all 5)\n\nDo NOT use LaTeX. Plain text only.\n\nTopic:\n${message}`;
   }
+
   if(activeMode==="math") {
-    if(activeMathTool==="solve") return `Mode: Math - Solve\nSolve this step by step. Show all working. Give the final answer clearly.\n\nProblem:\n${message}`;
-    if(activeMathTool==="explain") return `Mode: Math - Explain\nExplain this math concept clearly with examples.\n\nConcept:\n${message}`;
-    if(activeMathTool==="graph") return `Mode: Math - Graph\nDescribe how to graph this function/equation. List key points, intercepts, and behavior.\n\nEquation:\n${message}`;
+    if(activeMathTool==="solve") return `Mode: Math - Solve\nSolve this problem. Use this format:\n\n## Answer\n[Final answer in plain text, no LaTeX]\n\n## Step-by-step solution\n1. [First step]\n2. [Second step]\n3. [Continue...]\n\nWrite numbers and math in plain text. NO LaTeX notation like \\( or \\[.\n\nProblem:\n${message}`;
+
+    if(activeMathTool==="explain") return `Mode: Math - Explain\nExplain this math concept in plain text. No LaTeX notation.\n\n## What it is\n[Simple explanation]\n\n## Example\n[A clear example with numbers]\n\nConcept:\n${message}`;
+
+    if(activeMathTool==="graph") return `Mode: Math - Graph\nDescribe how to graph this. Plain text only, no LaTeX.\n\n## Key Points\n- x-intercepts: [values]\n- y-intercept: [value]\n- Key behavior: [description]\n\nEquation:\n${message}`;
   }
   return message;
 }
