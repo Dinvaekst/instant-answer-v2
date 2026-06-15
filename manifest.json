@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Instant Answer",
-  "version": "2.8",
-  "description": "Smart AI browser assistant with chat, PDF, YouTube and page understanding",
+  "version": "3.0",
+  "description": "Smart AI browser assistant with chat, PDF, math, YouTube and page understanding",
 
   "action": {
     "default_popup": "popup.html"
